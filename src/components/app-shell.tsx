@@ -2,16 +2,24 @@
 import { useEffect, useState } from "react";
 import { supabase } from "@/lib/supabase";
 import Link from "next/link";
-import { HeartPulse } from "lucide-react";
+import Image from "next/image";
 import { navItems } from "@/lib/data";
 
 type AppShellProps = {
   children: React.ReactNode;
   title: string;
   subtitle?: string;
+  hidePageHeader?: boolean;
+  showDefaultBottomNav?: boolean;
 };
 
-export function AppShell({ children, title, subtitle }: AppShellProps) {
+export function AppShell({
+  children,
+  title,
+  subtitle,
+  hidePageHeader = false,
+  showDefaultBottomNav = true,
+}: AppShellProps) {
 
   const [userEmail, setUserEmail] = useState<string | null>(null);
 
@@ -41,26 +49,33 @@ export function AppShell({ children, title, subtitle }: AppShellProps) {
   }
 
   return (
-    <div className="min-h-screen pb-24 md:pb-8">
-      <header className="sticky top-0 z-20 border-b border-emerald-100 bg-white/90 backdrop-blur no-print">
+    <div className="muna-page-surface min-h-screen pb-24 md:pb-8">
+      <header className="sticky top-0 z-20 border-b border-emerald-100/70 bg-white/75 shadow-sm backdrop-blur-xl no-print">
         <div className="mx-auto flex max-w-6xl items-center justify-between px-4 py-3">
-          <Link href="/" className="flex items-center gap-2 font-bold text-emerald-950">
-            <span className="grid h-10 w-10 place-items-center rounded-lg bg-emerald-600 text-white">
-              <HeartPulse className="h-5 w-5" aria-hidden="true" />
+          <Link href="/" className="flex items-center gap-3 font-black text-[#0F172A]">
+            <span className="grid h-12 w-12 place-items-center overflow-hidden rounded-2xl border border-emerald-100 bg-white shadow-[0_10px_26px_rgba(15,118,110,0.14)]">
+              <Image
+                src="/brand/muna-logo.png"
+                alt="MUNA IBS logo"
+                width={44}
+                height={44}
+                className="h-full w-full object-cover"
+                priority
+              />
             </span>
             MUNA IBS
           </Link>
           {userEmail ? (
   <button
     onClick={handleSignOut}
-    className="rounded-lg bg-emerald-600 px-4 py-3 text-sm font-semibold text-white"
+    className="rounded-2xl bg-[#0F766E] px-4 py-3 text-sm font-bold text-white shadow-[0_12px_28px_rgba(15,118,110,0.22)]"
   >
     Sign out
   </button>
 ) : (
   <Link
     href="/login"
-    className="rounded-lg bg-emerald-600 px-4 py-3 text-sm font-semibold text-white"
+    className="rounded-2xl bg-[#0F766E] px-4 py-3 text-sm font-bold text-white shadow-[0_12px_28px_rgba(15,118,110,0.22)]"
   >
     Sign in
   </Link>
@@ -69,14 +84,16 @@ export function AppShell({ children, title, subtitle }: AppShellProps) {
       </header>
 
       <main className="mx-auto max-w-6xl px-4 py-6 md:py-10">
-        <div className="mb-6">
-          <h1 className="text-3xl font-bold tracking-normal text-emerald-950 md:text-4xl">{title}</h1>
-          {subtitle ? <p className="mt-2 max-w-2xl text-base leading-7 text-slate-600">{subtitle}</p> : null}
-        </div>
+        {!hidePageHeader ? (
+          <div className="mb-6">
+            <h1 className="text-3xl font-black tracking-normal text-[#0F172A] md:text-4xl">{title}</h1>
+            {subtitle ? <p className="mt-2 max-w-2xl text-base font-medium leading-7 text-slate-600">{subtitle}</p> : null}
+          </div>
+        ) : null}
         {children}
       </main>
 
-      <nav className="fixed inset-x-0 bottom-0 z-30 border-t border-emerald-100 bg-white no-print md:hidden">
+      {showDefaultBottomNav ? <nav className="fixed inset-x-0 bottom-0 z-30 border-t border-emerald-100 bg-white/90 shadow-[0_-18px_44px_rgba(15,118,110,0.12)] backdrop-blur-xl no-print md:hidden">
         <div className="grid grid-cols-5">
           {navItems.slice(0, 5).map((item) => {
             const Icon = item.icon;
@@ -92,7 +109,7 @@ export function AppShell({ children, title, subtitle }: AppShellProps) {
             );
           })}
         </div>
-      </nav>
+      </nav> : null}
     </div>
   );
 }

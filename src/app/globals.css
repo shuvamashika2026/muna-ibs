@@ -1,8 +1,15 @@
 @import "tailwindcss";
 
 :root {
-  --background: #f7fbfa;
-  --foreground: #17332d;
+  --background: #f8fafc;
+  --foreground: #0f172a;
+  --muna-primary: #0f766e;
+  --muna-secondary: #065f46;
+  --muna-accent: #10b981;
+  --muna-light-mint: #d1fae5;
+  --muna-soft-green: #ecfdf5;
+  --muna-neutral: #f8fafc;
+  --muna-text-dark: #0f172a;
 }
 
 @theme inline {
@@ -23,8 +30,9 @@ html {
 body {
   min-height: 100vh;
   background:
-    radial-gradient(circle at top left, rgba(181, 226, 218, 0.38), transparent 30rem),
-    linear-gradient(180deg, #f7fbfa 0%, #eef7fb 100%);
+    radial-gradient(circle at 10% 5%, rgba(209, 250, 229, 0.9), transparent 24rem),
+    radial-gradient(circle at 92% 18%, rgba(16, 185, 129, 0.12), transparent 22rem),
+    linear-gradient(180deg, #ffffff 0%, #f8fafc 42%, #ecfdf5 100%);
   color: var(--foreground);
   font-family: Arial, Helvetica, sans-serif;
 }
@@ -34,6 +42,44 @@ input,
 select,
 textarea {
   font: inherit;
+}
+
+.muna-page-surface {
+  position: relative;
+}
+
+.muna-page-surface::before {
+  content: "";
+  position: fixed;
+  inset: 0;
+  z-index: -1;
+  pointer-events: none;
+  opacity: 0.55;
+  background:
+    linear-gradient(165deg, transparent 0 56%, rgba(15, 118, 110, 0.06) 56.2%, transparent 57%),
+    repeating-linear-gradient(170deg, transparent 0 16px, rgba(15, 118, 110, 0.045) 17px 18px);
+  mask-image: linear-gradient(180deg, transparent 0%, black 20%, black 78%, transparent 100%);
+}
+
+.muna-card {
+  border: 1px solid rgba(15, 118, 110, 0.12);
+  background: rgba(255, 255, 255, 0.86);
+  box-shadow: 0 18px 55px rgba(15, 23, 42, 0.07), 0 8px 28px rgba(15, 118, 110, 0.08);
+  backdrop-filter: blur(18px);
+}
+
+.muna-soft-card {
+  border: 1px solid rgba(16, 185, 129, 0.16);
+  background: linear-gradient(135deg, rgba(236, 253, 245, 0.96), rgba(255, 255, 255, 0.9));
+  box-shadow: 0 14px 40px rgba(15, 118, 110, 0.09);
+}
+
+.muna-dark-panel {
+  background:
+    radial-gradient(circle at 78% 18%, rgba(16, 185, 129, 0.34), transparent 11rem),
+    linear-gradient(135deg, #064e3b 0%, #032f2b 100%);
+  color: white;
+  box-shadow: 0 24px 70px rgba(6, 95, 70, 0.25);
 }
 
 @media print {

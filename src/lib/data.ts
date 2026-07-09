@@ -2,6 +2,7 @@ import {
   Activity,
   Apple,
   Bed,
+  Brain,
   ClipboardList,
   Droplet,
   FileText,
@@ -15,6 +16,7 @@ import {
 
 export const navItems = [
   { href: "/dashboard", label: "Dashboard", icon: Activity },
+  { href: "/ai-chat", label: "🧠 MUNA AI", icon: Brain },
   { href: "/add-meal", label: "Add meal", icon: Utensils },
   { href: "/add-symptoms", label: "Symptoms", icon: HeartPulse },
   { href: "/bowel-movement", label: "Bowel", icon: ClipboardList },

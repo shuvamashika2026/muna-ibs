@@ -2,6 +2,7 @@
 
 import { useState } from "react";
 import Link from "next/link";
+import Image from "next/image";
 import { DisclaimerNotice } from "@/components/disclaimer-notice";
 import { FormCard, inputClass, labelClass, primaryButtonClass } from "@/components/form-card";
 import { isSupabaseConfigured, supabase } from "@/lib/supabase";
@@ -41,7 +42,17 @@ export default function LoginPage() {
 
   return (
     <main className="mx-auto min-h-screen max-w-2xl px-4 py-8">
-      <Link href="/" className="text-sm font-semibold text-emerald-800">
+      <Link href="/" className="inline-flex items-center gap-3 text-sm font-semibold text-emerald-800">
+        <span className="grid h-12 w-12 place-items-center overflow-hidden rounded-xl border border-emerald-100 bg-white shadow-sm">
+          <Image
+            src="/brand/muna-logo.png"
+            alt="MUNA IBS logo"
+            width={48}
+            height={48}
+            className="h-full w-full object-cover"
+            priority
+          />
+        </span>
         MUNA IBS
       </Link>
       <h1 className="mt-6 text-4xl font-bold text-emerald-950">{mode === "sign-up" ? "Create account" : "Welcome back"}</h1>

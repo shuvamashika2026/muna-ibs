@@ -11,6 +11,7 @@ Medical disclaimer: MUNA IBS does not provide medical diagnosis, treatment, or c
 - Tailwind CSS
 - Supabase authentication and database
 - PWA manifest and service worker
+- MUNA IBS company/app logo assets
 - Capacitor-friendly frontend structure for later Android packaging
 
 ## Local Setup
@@ -32,6 +33,7 @@ cp .env.example .env.local
 ```bash
 NEXT_PUBLIC_SUPABASE_URL=https://your-project-ref.supabase.co
 NEXT_PUBLIC_SUPABASE_ANON_KEY=your-supabase-anon-key
+OPENAI_API_KEY=your-openai-api-key
 ```
 
 4. Start the app:
@@ -71,6 +73,7 @@ Row Level Security is enabled so signed-in users can manage only their own rows.
 3. Add environment variables in Vercel Project Settings:
    - `NEXT_PUBLIC_SUPABASE_URL`
    - `NEXT_PUBLIC_SUPABASE_ANON_KEY`
+   - `OPENAI_API_KEY`
 4. Deploy.
 
 ## PWA Notes
@@ -79,7 +82,10 @@ The app includes:
 
 - `public/manifest.json`
 - `public/sw.js`
-- `public/icon.svg`
+- `public/brand/muna-logo.png`
+- `public/icon-192.png`
+- `public/icon-512.png`
+- `public/apple-touch-icon.png`
 - mobile theme metadata in `src/app/layout.tsx`
 
 The service worker registers in production builds.
