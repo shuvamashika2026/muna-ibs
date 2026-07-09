@@ -2,6 +2,7 @@
 
 import { useEffect, useState } from "react";
 import { calculateRisk } from "@/lib/risk";
+import { generateTodayPlan } from "@/lib/plan";
 import { supabase } from "@/lib/supabase";
 import { AppShell } from "@/components/app-shell";
 import { QuickActions } from "@/components/quick-actions";
@@ -40,6 +41,7 @@ export default function DashboardPage() {
     riskLevel: "Low",
     riskReasons: [] as string[],
     riskRecommendations: [] as string[],
+    todayPlan: [] as string[],
   });
 
   useEffect(() => {
@@ -124,6 +126,7 @@ export default function DashboardPage() {
       const sleep = Number(latestSleep?.hours ?? 8);
       const waterGoal = Number(profile?.water_goal ?? 2500);
       const sleepGoal = Number(profile?.sleep_goal ?? 7);
+      const hasHighFodmapMeal = (highFodmapMeals?.length ?? 0) > 0;
 
       const risk = calculateRisk({
         painLevel: pain,
@@ -131,8 +134,19 @@ export default function DashboardPage() {
         waterToday: waterTotal,
         waterGoal,
         sleepHours: sleep,
-        hasHighFodmapMeal: (highFodmapMeals?.length ?? 0) > 0,
+        hasHighFodmapMeal,
         bristolType: bristol,
+      });
+
+      const todayPlan = generateTodayPlan({
+        waterToday: waterTotal,
+        waterGoal,
+        sleepHours: sleep,
+        sleepGoal,
+        riskLevel: risk.level,
+        hasHighFodmapMeal,
+        painLevel: pain,
+        stressLevel: stress,
       });
 
       let score = 100;
@@ -190,6 +204,7 @@ export default function DashboardPage() {
         riskLevel: risk.level,
         riskReasons: risk.reasons,
         riskRecommendations: risk.recommendations,
+        todayPlan,
       });
     }
 
@@ -251,35 +266,57 @@ export default function DashboardPage() {
     >
       <DashboardHero ibsScore={stats.ibsScore} scoreLabel={scoreLabel} />
 
-      <div className="mt-6 rounded-2xl border border-red-100 bg-white p-5 shadow-sm">
-        <p className="text-sm font-semibold uppercase tracking-wide text-red-500">
-          Tomorrow&apos;s IBS Risk
-        </p>
+      <div className="mt-6 rounded-2xl border border-amber-100 bg-gradient-to-br from-white to-amber-50 p-6 shadow-sm">
+        <div className="flex flex-col gap-6 lg:flex-row lg:items-center lg:justify-between">
+          <div>
+            <p className="text-sm font-semibold uppercase tracking-wide text-amber-700">
+              Tomorrow&apos;s IBS Risk
+            </p>
 
-        <h2 className="mt-2 text-4xl font-bold text-red-700">
-          {stats.riskScore}%
-        </h2>
+            <h2 className="mt-3 text-5xl font-bold text-emerald-950">
+              {stats.riskScore}%
+            </h2>
 
-        <p className="mt-2 text-lg font-bold text-slate-800">
-          Risk level: {stats.riskLevel}
-        </p>
+            <p className="mt-2 text-xl font-bold text-amber-800">
+              {stats.riskLevel} Risk
+            </p>
 
-        <div className="mt-4">
-          <p className="font-semibold text-slate-700">Why?</p>
-          <ul className="mt-2 list-disc space-y-1 pl-5 text-sm text-slate-600">
-            {stats.riskReasons.map((reason) => (
-              <li key={reason}>{reason}</li>
-            ))}
-          </ul>
+            <p className="mt-3 max-w-2xl text-sm leading-6 text-slate-600">
+              Based on your recent symptoms, hydration, sleep, bowel movement,
+              and meal logs.
+            </p>
+          </div>
+
+          <div className="grid h-36 w-36 place-items-center rounded-full border-8 border-amber-300 bg-white shadow-sm">
+            <div className="text-center">
+              <p className="text-4xl font-bold text-amber-700">
+                {stats.riskScore}%
+              </p>
+              <p className="text-xs font-bold uppercase text-slate-500">
+                {stats.riskLevel}
+              </p>
+            </div>
+          </div>
         </div>
 
-        <div className="mt-4">
-          <p className="font-semibold text-slate-700">Recommendation</p>
-          <ul className="mt-2 list-disc space-y-1 pl-5 text-sm text-slate-600">
-            {stats.riskRecommendations.map((item) => (
-              <li key={item}>{item}</li>
-            ))}
-          </ul>
+        <div className="mt-6 grid gap-4 md:grid-cols-2">
+          <div className="rounded-2xl bg-white p-4 shadow-sm">
+            <p className="font-bold text-slate-800">Why?</p>
+            <ul className="mt-3 list-disc space-y-2 pl-5 text-sm leading-6 text-slate-600">
+              {stats.riskReasons.map((reason) => (
+                <li key={reason}>{reason}</li>
+              ))}
+            </ul>
+          </div>
+
+          <div className="rounded-2xl bg-emerald-50 p-4 shadow-sm">
+            <p className="font-bold text-emerald-950">Today&apos;s Plan</p>
+            <ul className="mt-3 list-disc space-y-2 pl-5 text-sm leading-6 text-emerald-800">
+              {stats.todayPlan.map((item) => (
+                <li key={item}>{item}</li>
+              ))}
+            </ul>
+          </div>
         </div>
       </div>
 
