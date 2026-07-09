@@ -14,6 +14,7 @@ import {
   ShieldCheck,
   Moon,
   CalendarDays,
+  Sparkles,
 } from "lucide-react";
 
 export default function DashboardPage() {
@@ -25,8 +26,10 @@ export default function DashboardPage() {
     waterToday: 0,
     waterGoal: 2500,
     sleepHours: "-",
+    sleepGoal: 7,
     medications: 0,
     ibsScore: 100,
+    insight: "Keep logging your meals, symptoms, water, sleep, and bowel movements to unlock personalised IBS insights.",
   });
 
   useEffect(() => {
@@ -51,7 +54,7 @@ export default function DashboardPage() {
 
       const { data: latestSymptom } = await supabase
         .from("symptoms")
-        .select("pain_level, bloating_level")
+        .select("pain_level, bloating_level, gas_level, stress_level")
         .eq("user_id", user.id)
         .order("created_at", { ascending: false })
         .limit(1)
@@ -99,6 +102,8 @@ export default function DashboardPage() {
 
       const pain = Number(latestSymptom?.pain_level ?? 0);
       const bloating = Number(latestSymptom?.bloating_level ?? 0);
+      const gas = Number(latestSymptom?.gas_level ?? 0);
+      const stress = Number(latestSymptom?.stress_level ?? 0);
       const bristol = Number(latestBowel?.bristol_type ?? 4);
       const sleep = Number(latestSleep?.hours ?? 8);
       const waterGoal = Number(profile?.water_goal ?? 2500);
@@ -112,6 +117,35 @@ export default function DashboardPage() {
       if (sleep < sleepGoal) score -= 5;
       score = Math.max(0, Math.min(100, Math.round(score)));
 
+      let insight =
+        "Keep logging your meals, symptoms, water, sleep, and bowel movements to unlock personalised IBS insights.";
+
+      if (pain >= 7 || bloating >= 7) {
+        insight =
+          "High symptom intensity detected. Review meals logged before this symptom and monitor whether the same food appears repeatedly.";
+      } else if (stress >= 7) {
+        insight =
+          "High stress level detected. Stress can increase gut sensitivity, so relaxation, breathing, or light walking may help today.";
+      } else if (waterTotal < waterGoal) {
+        insight =
+          "Water intake is below your profile goal today. Try to drink more gradually rather than drinking a large amount at once.";
+      } else if (sleep < sleepGoal) {
+        insight =
+          "Sleep is below your profile goal. Poor sleep may increase IBS sensitivity for some people.";
+      } else if (bristol === 1 || bristol === 2) {
+        insight =
+          "Your latest stool type suggests constipation tendency. Track fibre, water, movement, and symptoms together.";
+      } else if (bristol === 6 || bristol === 7) {
+        insight =
+          "Your latest stool type suggests diarrhoea tendency. Review recent meals, stress, and hydration.";
+      } else if ((mealsCount ?? 0) === 0) {
+        insight =
+          "No meals logged today yet. Add meals to help MUNA identify potential food-related patterns over time.";
+      } else {
+        insight =
+          "Your latest logs look relatively stable. Continue logging consistently so MUNA can detect patterns over time.";
+      }
+
       setStats({
         mealsToday: mealsCount ?? 0,
         painLevel: latestSymptom?.pain_level?.toString() ?? "-",
@@ -120,8 +154,10 @@ export default function DashboardPage() {
         waterToday: waterTotal,
         waterGoal,
         sleepHours: latestSleep?.hours?.toString() ?? "-",
+        sleepGoal,
         medications: medicationCount ?? 0,
         ibsScore: score,
+        insight,
       });
     }
 
@@ -170,7 +206,7 @@ export default function DashboardPage() {
     {
       label: "Sleep",
       value: stats.sleepHours,
-      hint: "Latest sleep entry",
+      hint: `Goal: ${stats.sleepGoal} hrs`,
       icon: Moon,
     },
     {
@@ -209,6 +245,18 @@ export default function DashboardPage() {
         </div>
       </div>
 
+      <div className="mt-6 rounded-2xl border border-amber-100 bg-amber-50 p-5 shadow-sm">
+        <div className="flex items-start gap-3">
+          <Sparkles className="mt-1 h-6 w-6 text-amber-700" />
+          <div>
+            <h2 className="text-xl font-bold text-amber-950">AI Insight v1</h2>
+            <p className="mt-2 text-sm leading-6 text-amber-900">
+              {stats.insight}
+            </p>
+          </div>
+        </div>
+      </div>
+
       <div className="mt-6 grid gap-4 lg:grid-cols-2">
         <div className="rounded-2xl border border-cyan-100 bg-white p-5 shadow-sm">
           <div className="flex items-center justify-between">
@@ -238,7 +286,7 @@ export default function DashboardPage() {
             <div>
               <h2 className="text-xl font-bold text-emerald-950">Sleep</h2>
               <p className="mt-1 text-sm text-slate-500">
-                Latest sleep entry
+                Goal: {stats.sleepGoal} hours
               </p>
             </div>
             <Moon className="h-8 w-8 text-indigo-600" />
@@ -248,7 +296,7 @@ export default function DashboardPage() {
             {stats.sleepHours} hrs
           </p>
           <p className="mt-2 text-sm text-slate-500">
-            Sleep quality will be added to Dashboard 2.1.
+            Latest sleep entry from your logs.
           </p>
         </div>
       </div>
@@ -309,10 +357,9 @@ export default function DashboardPage() {
         <div className="flex items-start gap-3">
           <CalendarDays className="mt-1 h-6 w-6 text-amber-700" />
           <div>
-            <h2 className="text-xl font-bold text-amber-950">Today’s insight</h2>
+            <h2 className="text-xl font-bold text-amber-950">What happens next?</h2>
             <p className="mt-2 text-sm leading-6 text-amber-900">
-              Keep logging meals, symptoms, water, sleep, and bowel movements.
-              MUNA will use this data to identify possible IBS patterns and triggers.
+              In the next version, MUNA will compare meals and symptoms over time to identify possible trigger patterns.
             </p>
           </div>
         </div>
