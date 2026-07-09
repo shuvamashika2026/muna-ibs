@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
+import { calculateRisk } from "@/lib/risk";
 import { supabase } from "@/lib/supabase";
 import { AppShell } from "@/components/app-shell";
 import { QuickActions } from "@/components/quick-actions";
@@ -35,6 +36,10 @@ export default function DashboardPage() {
     ibsScore: 100,
     insight:
       "Keep logging your meals, symptoms, water, sleep, and bowel movements to unlock personalised IBS insights.",
+    riskScore: 0,
+    riskLevel: "Low",
+    riskReasons: [] as string[],
+    riskRecommendations: [] as string[],
   });
 
   useEffect(() => {
@@ -80,8 +85,10 @@ export default function DashboardPage() {
         .eq("log_date", today);
 
       const waterTotal =
-        waterLogs?.reduce((sum, item) => sum + Number(item.amount_ml || 0), 0) ??
-        0;
+        waterLogs?.reduce(
+          (sum, item) => sum + Number(item.amount_ml || 0),
+          0
+        ) ?? 0;
 
       const { data: latestSleep } = await supabase
         .from("sleep_logs")
@@ -103,6 +110,13 @@ export default function DashboardPage() {
         .eq("id", user.id)
         .maybeSingle();
 
+      const { data: highFodmapMeals } = await supabase
+        .from("meals")
+        .select("id")
+        .eq("user_id", user.id)
+        .eq("meal_date", today)
+        .eq("fodmap_level", "High");
+
       const pain = Number(latestSymptom?.pain_level ?? 0);
       const bloating = Number(latestSymptom?.bloating_level ?? 0);
       const stress = Number(latestSymptom?.stress_level ?? 0);
@@ -110,6 +124,16 @@ export default function DashboardPage() {
       const sleep = Number(latestSleep?.hours ?? 8);
       const waterGoal = Number(profile?.water_goal ?? 2500);
       const sleepGoal = Number(profile?.sleep_goal ?? 7);
+
+      const risk = calculateRisk({
+        painLevel: pain,
+        stressLevel: stress,
+        waterToday: waterTotal,
+        waterGoal,
+        sleepHours: sleep,
+        hasHighFodmapMeal: (highFodmapMeals?.length ?? 0) > 0,
+        bristolType: bristol,
+      });
 
       let score = 100;
       score -= pain * 4;
@@ -162,6 +186,10 @@ export default function DashboardPage() {
         medications: medicationCount ?? 0,
         ibsScore: score,
         insight,
+        riskScore: risk.score,
+        riskLevel: risk.level,
+        riskReasons: risk.reasons,
+        riskRecommendations: risk.recommendations,
       });
     }
 
@@ -222,6 +250,38 @@ export default function DashboardPage() {
       subtitle="Your personalised IBS health snapshot."
     >
       <DashboardHero ibsScore={stats.ibsScore} scoreLabel={scoreLabel} />
+
+      <div className="mt-6 rounded-2xl border border-red-100 bg-white p-5 shadow-sm">
+        <p className="text-sm font-semibold uppercase tracking-wide text-red-500">
+          Tomorrow&apos;s IBS Risk
+        </p>
+
+        <h2 className="mt-2 text-4xl font-bold text-red-700">
+          {stats.riskScore}%
+        </h2>
+
+        <p className="mt-2 text-lg font-bold text-slate-800">
+          Risk level: {stats.riskLevel}
+        </p>
+
+        <div className="mt-4">
+          <p className="font-semibold text-slate-700">Why?</p>
+          <ul className="mt-2 list-disc space-y-1 pl-5 text-sm text-slate-600">
+            {stats.riskReasons.map((reason) => (
+              <li key={reason}>{reason}</li>
+            ))}
+          </ul>
+        </div>
+
+        <div className="mt-4">
+          <p className="font-semibold text-slate-700">Recommendation</p>
+          <ul className="mt-2 list-disc space-y-1 pl-5 text-sm text-slate-600">
+            {stats.riskRecommendations.map((item) => (
+              <li key={item}>{item}</li>
+            ))}
+          </ul>
+        </div>
+      </div>
 
       <AIInsightCard insight={stats.insight} />
 
