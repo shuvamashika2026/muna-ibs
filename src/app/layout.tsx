@@ -13,14 +13,14 @@ const geistMono = Geist_Mono({
   subsets: ["latin"],
 });
 
-export const metadata: Metadata = {
+export const metadata = {
   title: "MUNA IBS",
-  description: "A gentle IBS tracking companion for meals, symptoms, routines, and weekly reports.",
+  description: "Your IBS Health Companion",
   manifest: "/manifest.json",
-  appleWebApp: {
-    capable: true,
-    title: "MUNA IBS",
-    statusBarStyle: "default",
+  themeColor: "#0f766e",
+  icons: {
+    icon: "/icon.svg",
+    apple: "/icon.svg",
   },
 };
 
