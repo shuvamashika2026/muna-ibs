@@ -4,8 +4,12 @@ import { useState } from "react";
 import { AppShell } from "@/components/app-shell";
 import { FormCard, inputClass, labelClass } from "@/components/form-card";
 import { SaveEntryButton } from "@/components/save-entry-button";
+import { FoodItem, searchFoods } from "@/lib/food";
 
 export default function AddMealPage() {
+  const [foodSearch, setFoodSearch] = useState("");
+  const [foodResults, setFoodResults] = useState<FoodItem[]>([]);
+
   const [mealType, setMealType] = useState("Breakfast");
   const [mealName, setMealName] = useState("");
   const [ingredients, setIngredients] = useState("");
@@ -24,20 +28,75 @@ export default function AddMealPage() {
   const [hasCaffeine, setHasCaffeine] = useState(false);
   const [hasAlcohol, setHasAlcohol] = useState(false);
 
+  async function handleFoodSearch(value: string) {
+    setFoodSearch(value);
+
+    if (value.trim().length < 2) {
+      setFoodResults([]);
+      return;
+    }
+
+    const results = await searchFoods(value);
+    setFoodResults(results);
+  }
+
+  function selectFood(food: FoodItem) {
+    setMealName(food.food_name);
+    setIngredients(food.ingredients_summary ?? food.food_name);
+    setFodmapLevel(food.fodmap_level ?? "Unknown");
+
+    const triggers = food.common_triggers ?? [];
+
+    setHasOnion(triggers.includes("onion"));
+    setHasGarlic(triggers.includes("garlic"));
+    setHasDairy(triggers.includes("dairy") || triggers.includes("lactose"));
+    setHasGluten(triggers.includes("gluten") || triggers.includes("wheat"));
+    setHasCaffeine(triggers.includes("caffeine"));
+    setHasAlcohol(triggers.includes("alcohol"));
+    setIsSpicy(triggers.includes("spicy"));
+
+    setFoodResults([]);
+    setFoodSearch(food.food_name);
+  }
+
   return (
     <AppShell
       title="Add meal"
-      subtitle="Record detailed meal information for future trigger analysis."
+      subtitle="Search foods and auto-fill meal details for better trigger analysis."
     >
       <FormCard>
-        <div className="grid gap-4 md:grid-cols-2">
+        <label className={labelClass}>
+          Search Food Intelligence Database
+          <input
+            className={inputClass}
+            value={foodSearch}
+            onChange={(e) => handleFoodSearch(e.target.value)}
+            placeholder="Search food, e.g. rice, milk, onion, coffee"
+          />
+        </label>
+
+        {foodResults.length > 0 && (
+          <div className="mt-3 rounded-2xl border border-emerald-100 bg-white p-3 shadow-sm">
+            {foodResults.map((food) => (
+              <button
+                key={food.id}
+                type="button"
+                onClick={() => selectFood(food)}
+                className="block w-full rounded-xl px-4 py-3 text-left hover:bg-emerald-50"
+              >
+                <p className="font-bold text-emerald-950">{food.food_name}</p>
+                <p className="text-sm text-slate-500">
+                  {food.cuisine ?? "Global"} • FODMAP: {food.fodmap_level ?? "Unknown"}
+                </p>
+              </button>
+            ))}
+          </div>
+        )}
+
+        <div className="mt-5 grid gap-4 md:grid-cols-2">
           <label className={labelClass}>
             Meal time
-            <select
-              className={inputClass}
-              value={mealType}
-              onChange={(e) => setMealType(e.target.value)}
-            >
+            <select className={inputClass} value={mealType} onChange={(e) => setMealType(e.target.value)}>
               <option>Breakfast</option>
               <option>Lunch</option>
               <option>Dinner</option>
@@ -47,41 +106,22 @@ export default function AddMealPage() {
 
           <label className={labelClass}>
             Meal name
-            <input
-              className={inputClass}
-              value={mealName}
-              onChange={(e) => setMealName(e.target.value)}
-              placeholder="Example: Rice with chicken curry"
-            />
+            <input className={inputClass} value={mealName} onChange={(e) => setMealName(e.target.value)} />
           </label>
 
           <label className={labelClass}>
             Ingredients / foods eaten
-            <input
-              className={inputClass}
-              value={ingredients}
-              onChange={(e) => setIngredients(e.target.value)}
-              placeholder="Rice, chicken, onion, garlic, spices"
-            />
+            <input className={inputClass} value={ingredients} onChange={(e) => setIngredients(e.target.value)} />
           </label>
 
           <label className={labelClass}>
             Drinks
-            <input
-              className={inputClass}
-              value={drinks}
-              onChange={(e) => setDrinks(e.target.value)}
-              placeholder="Water, coffee, tea, soft drink"
-            />
+            <input className={inputClass} value={drinks} onChange={(e) => setDrinks(e.target.value)} />
           </label>
 
           <label className={labelClass}>
             Portion size
-            <select
-              className={inputClass}
-              value={portionSize}
-              onChange={(e) => setPortionSize(e.target.value)}
-            >
+            <select className={inputClass} value={portionSize} onChange={(e) => setPortionSize(e.target.value)}>
               <option>Small</option>
               <option>Medium</option>
               <option>Large</option>
@@ -91,11 +131,7 @@ export default function AddMealPage() {
 
           <label className={labelClass}>
             Location
-            <select
-              className={inputClass}
-              value={locationType}
-              onChange={(e) => setLocationType(e.target.value)}
-            >
+            <select className={inputClass} value={locationType} onChange={(e) => setLocationType(e.target.value)}>
               <option>Home</option>
               <option>Restaurant</option>
               <option>Office</option>
@@ -106,11 +142,7 @@ export default function AddMealPage() {
 
           <label className={labelClass}>
             Cooking method
-            <select
-              className={inputClass}
-              value={cookingMethod}
-              onChange={(e) => setCookingMethod(e.target.value)}
-            >
+            <select className={inputClass} value={cookingMethod} onChange={(e) => setCookingMethod(e.target.value)}>
               <option value="">Select</option>
               <option>Boiled</option>
               <option>Steamed</option>
@@ -124,11 +156,7 @@ export default function AddMealPage() {
 
           <label className={labelClass}>
             Estimated FODMAP level
-            <select
-              className={inputClass}
-              value={fodmapLevel}
-              onChange={(e) => setFodmapLevel(e.target.value)}
-            >
+            <select className={inputClass} value={fodmapLevel} onChange={(e) => setFodmapLevel(e.target.value)}>
               <option>Unknown</option>
               <option>Low</option>
               <option>Medium</option>
@@ -138,9 +166,7 @@ export default function AddMealPage() {
         </div>
 
         <div className="mt-5 rounded-2xl bg-emerald-50 p-4">
-          <p className="text-sm font-bold text-emerald-950">
-            Possible trigger tags
-          </p>
+          <p className="text-sm font-bold text-emerald-950">Possible trigger tags</p>
 
           <div className="mt-4 grid gap-3 md:grid-cols-3">
             {[
@@ -152,16 +178,11 @@ export default function AddMealPage() {
               ["Caffeine", hasCaffeine, setHasCaffeine],
               ["Alcohol", hasAlcohol, setHasAlcohol],
             ].map(([label, value, setter]) => (
-              <label
-                key={label as string}
-                className="flex items-center gap-2 text-sm font-semibold text-slate-700"
-              >
+              <label key={label as string} className="flex items-center gap-2 text-sm font-semibold text-slate-700">
                 <input
                   type="checkbox"
                   checked={value as boolean}
-                  onChange={(e) =>
-                    (setter as (value: boolean) => void)(e.target.checked)
-                  }
+                  onChange={(e) => (setter as (value: boolean) => void)(e.target.checked)}
                 />
                 {label as string}
               </label>
@@ -171,13 +192,7 @@ export default function AddMealPage() {
 
         <label className={`${labelClass} mt-5`}>
           Notes
-          <textarea
-            className={inputClass}
-            rows={4}
-            value={notes}
-            onChange={(e) => setNotes(e.target.value)}
-            placeholder="Example: spicy restaurant food, heavy portion, ate late night"
-          />
+          <textarea className={inputClass} rows={4} value={notes} onChange={(e) => setNotes(e.target.value)} />
         </label>
 
         <SaveEntryButton
