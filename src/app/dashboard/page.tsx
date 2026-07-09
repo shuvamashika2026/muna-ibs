@@ -1,21 +1,25 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import Link from "next/link";
+import { supabase } from "@/lib/supabase";
 import { AppShell } from "@/components/app-shell";
 import { QuickActions } from "@/components/quick-actions";
-import { supabase } from "@/lib/supabase";
+
 import {
   Apple,
   Activity,
   HeartPulse,
   Droplets,
   Pill,
-  ShieldCheck,
   Moon,
-  CalendarDays,
-  Sparkles,
 } from "lucide-react";
+
+import { DashboardHero } from "@/components/dashboard/DashboardHero";
+import { AIInsightCard } from "@/components/dashboard/AIInsightCard";
+import { WaterProgress } from "@/components/dashboard/WaterProgress";
+import { SleepSummaryCard } from "@/components/dashboard/SleepSummaryCard";
+import { StatsCards } from "@/components/dashboard/StatsCards";
+import { QuickLog } from "@/components/dashboard/QuickLog";
 
 export default function DashboardPage() {
   const [stats, setStats] = useState({
@@ -29,7 +33,8 @@ export default function DashboardPage() {
     sleepGoal: 7,
     medications: 0,
     ibsScore: 100,
-    insight: "Keep logging your meals, symptoms, water, sleep, and bowel movements to unlock personalised IBS insights.",
+    insight:
+      "Keep logging your meals, symptoms, water, sleep, and bowel movements to unlock personalised IBS insights.",
   });
 
   useEffect(() => {
@@ -75,10 +80,8 @@ export default function DashboardPage() {
         .eq("log_date", today);
 
       const waterTotal =
-        waterLogs?.reduce(
-          (sum, item) => sum + Number(item.amount_ml || 0),
-          0
-        ) ?? 0;
+        waterLogs?.reduce((sum, item) => sum + Number(item.amount_ml || 0), 0) ??
+        0;
 
       const { data: latestSleep } = await supabase
         .from("sleep_logs")
@@ -102,7 +105,6 @@ export default function DashboardPage() {
 
       const pain = Number(latestSymptom?.pain_level ?? 0);
       const bloating = Number(latestSymptom?.bloating_level ?? 0);
-      const gas = Number(latestSymptom?.gas_level ?? 0);
       const stress = Number(latestSymptom?.stress_level ?? 0);
       const bristol = Number(latestBowel?.bristol_type ?? 4);
       const sleep = Number(latestSleep?.hours ?? 8);
@@ -112,9 +114,11 @@ export default function DashboardPage() {
       let score = 100;
       score -= pain * 4;
       score -= bloating * 3;
+
       if (bristol !== 3 && bristol !== 4) score -= 10;
       if (waterTotal < waterGoal) score -= 5;
       if (sleep < sleepGoal) score -= 5;
+
       score = Math.max(0, Math.min(100, Math.round(score)));
 
       let insight =
@@ -140,7 +144,7 @@ export default function DashboardPage() {
           "Your latest stool type suggests diarrhoea tendency. Review recent meals, stress, and hydration.";
       } else if ((mealsCount ?? 0) === 0) {
         insight =
-          "No meals logged today yet. Add meals to help MUNA identify potential food-related patterns over time.";
+          "No meals logged today yet. Add meals to help MUNA identify possible food-related patterns over time.";
       } else {
         insight =
           "Your latest logs look relatively stable. Continue logging consistently so MUNA can detect patterns over time.";
@@ -163,11 +167,6 @@ export default function DashboardPage() {
 
     loadDashboard();
   }, []);
-
-  const waterProgress = Math.min(
-    100,
-    Math.round((stats.waterToday / stats.waterGoal) * 100)
-  );
 
   const scoreLabel =
     stats.ibsScore >= 80
@@ -222,148 +221,25 @@ export default function DashboardPage() {
       title="Dashboard"
       subtitle="Your personalised IBS health snapshot."
     >
-      <div className="rounded-2xl bg-gradient-to-br from-emerald-700 to-teal-600 p-6 text-white shadow-lg">
-        <div className="flex flex-col gap-5 md:flex-row md:items-center md:justify-between">
-          <div>
-            <p className="text-sm font-semibold uppercase tracking-wide text-emerald-100">
-              MUNA IBS Score
-            </p>
-            <h2 className="mt-2 text-5xl font-bold">{stats.ibsScore} / 100</h2>
-            <p className="mt-3 text-lg font-medium text-emerald-50">
-              {scoreLabel}
-            </p>
-            <p className="mt-2 max-w-2xl text-sm text-emerald-50">
-              Based on your latest pain, bloating, bowel movement, water, and sleep logs.
-            </p>
-          </div>
+      <DashboardHero ibsScore={stats.ibsScore} scoreLabel={scoreLabel} />
 
-          <div className="rounded-2xl bg-white/15 p-5 text-center backdrop-blur">
-            <ShieldCheck className="mx-auto h-12 w-12 text-white" />
-            <p className="mt-3 text-sm font-semibold">Today’s status</p>
-            <p className="mt-1 text-2xl font-bold">{scoreLabel}</p>
-          </div>
-        </div>
-      </div>
-
-      <div className="mt-6 rounded-2xl border border-amber-100 bg-amber-50 p-5 shadow-sm">
-        <div className="flex items-start gap-3">
-          <Sparkles className="mt-1 h-6 w-6 text-amber-700" />
-          <div>
-            <h2 className="text-xl font-bold text-amber-950">AI Insight v1</h2>
-            <p className="mt-2 text-sm leading-6 text-amber-900">
-              {stats.insight}
-            </p>
-          </div>
-        </div>
-      </div>
+      <AIInsightCard insight={stats.insight} />
 
       <div className="mt-6 grid gap-4 lg:grid-cols-2">
-        <div className="rounded-2xl border border-cyan-100 bg-white p-5 shadow-sm">
-          <div className="flex items-center justify-between">
-            <div>
-              <h2 className="text-xl font-bold text-emerald-950">Water progress</h2>
-              <p className="mt-1 text-sm text-slate-500">
-                {stats.waterToday} / {stats.waterGoal} mL
-              </p>
-            </div>
-            <Droplets className="h-8 w-8 text-cyan-600" />
-          </div>
+        <WaterProgress
+          waterToday={stats.waterToday}
+          waterGoal={stats.waterGoal}
+        />
 
-          <div className="mt-5 h-4 overflow-hidden rounded-full bg-cyan-100">
-            <div
-              className="h-full rounded-full bg-cyan-600"
-              style={{ width: `${waterProgress}%` }}
-            />
-          </div>
-
-          <p className="mt-3 text-sm font-semibold text-slate-600">
-            {waterProgress}% of your daily goal completed
-          </p>
-        </div>
-
-        <div className="rounded-2xl border border-indigo-100 bg-white p-5 shadow-sm">
-          <div className="flex items-center justify-between">
-            <div>
-              <h2 className="text-xl font-bold text-emerald-950">Sleep</h2>
-              <p className="mt-1 text-sm text-slate-500">
-                Goal: {stats.sleepGoal} hours
-              </p>
-            </div>
-            <Moon className="h-8 w-8 text-indigo-600" />
-          </div>
-
-          <p className="mt-5 text-4xl font-bold text-emerald-950">
-            {stats.sleepHours} hrs
-          </p>
-          <p className="mt-2 text-sm text-slate-500">
-            Latest sleep entry from your logs.
-          </p>
-        </div>
+        <SleepSummaryCard
+          sleepHours={stats.sleepHours}
+          sleepGoal={stats.sleepGoal}
+        />
       </div>
 
-      <div className="mt-6 grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
-        {cards.map((card) => {
-          const Icon = card.icon;
+      <StatsCards cards={cards} />
 
-          return (
-            <div
-              key={card.label}
-              className="rounded-2xl border border-emerald-100 bg-white p-5 shadow-sm"
-            >
-              <Icon className="h-6 w-6 text-emerald-700" aria-hidden="true" />
-              <p className="mt-4 text-sm font-semibold text-slate-500">
-                {card.label}
-              </p>
-              <p className="mt-1 text-3xl font-bold text-emerald-950">
-                {card.value}
-              </p>
-              <p className="mt-2 text-sm text-slate-500">{card.hint}</p>
-            </div>
-          );
-        })}
-      </div>
-
-      <div className="mt-6 rounded-2xl border border-sky-100 bg-white p-5 shadow-sm">
-        <h2 className="text-xl font-bold text-emerald-950">Quick log</h2>
-
-        <div className="mt-4 grid gap-3 md:grid-cols-3 lg:grid-cols-6">
-          <Link href="/add-meal" className="rounded-xl bg-emerald-600 px-5 py-4 text-center font-semibold text-white">
-            Add meal
-          </Link>
-
-          <Link href="/add-symptoms" className="rounded-xl bg-sky-600 px-5 py-4 text-center font-semibold text-white">
-            Add symptoms
-          </Link>
-
-          <Link href="/bowel-movement" className="rounded-xl bg-teal-700 px-5 py-4 text-center font-semibold text-white">
-            Log bowel
-          </Link>
-
-          <Link href="/water" className="rounded-xl bg-cyan-600 px-5 py-4 text-center font-semibold text-white">
-            Log water
-          </Link>
-
-          <Link href="/medication" className="rounded-xl bg-purple-600 px-5 py-4 text-center font-semibold text-white">
-            Medication
-          </Link>
-
-          <Link href="/history" className="rounded-xl bg-slate-700 px-5 py-4 text-center font-semibold text-white">
-            History
-          </Link>
-        </div>
-      </div>
-
-      <div className="mt-6 rounded-2xl border border-amber-100 bg-amber-50 p-5 shadow-sm">
-        <div className="flex items-start gap-3">
-          <CalendarDays className="mt-1 h-6 w-6 text-amber-700" />
-          <div>
-            <h2 className="text-xl font-bold text-amber-950">What happens next?</h2>
-            <p className="mt-2 text-sm leading-6 text-amber-900">
-              In the next version, MUNA will compare meals and symptoms over time to identify possible trigger patterns.
-            </p>
-          </div>
-        </div>
-      </div>
+      <QuickLog />
 
       <div className="mt-6">
         <QuickActions />
