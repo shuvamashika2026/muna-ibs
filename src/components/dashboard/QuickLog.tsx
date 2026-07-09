@@ -6,6 +6,8 @@ const quickLinks = [
   { href: "/bowel-movement", label: "Log bowel", className: "bg-teal-700" },
   { href: "/water", label: "Log water", className: "bg-cyan-600" },
   { href: "/medication", label: "Medication", className: "bg-purple-600" },
+  { href: "/analytics", label: "Analytics", className: "bg-orange-600" },
+  { href: "/food-intelligence", label: "Food DB", className: "bg-lime-600" },
   { href: "/history", label: "History", className: "bg-slate-700" },
 ];
 
