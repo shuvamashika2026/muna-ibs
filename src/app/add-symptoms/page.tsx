@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { AppShell } from "@/components/app-shell";
 import { FormCard, inputClass, labelClass } from "@/components/form-card";
 import { SaveEntryButton } from "@/components/save-entry-button";
@@ -16,6 +16,28 @@ export default function AddSymptomsPage() {
   const [constipation, setConstipation] = useState(false);
   const [diarrhea, setDiarrhea] = useState(false);
   const [notes, setNotes] = useState("");
+
+  useEffect(() => {
+    const symptomDraft = localStorage.getItem("munaVoiceSymptomDraft");
+    const stressDraft = localStorage.getItem("munaVoiceStressDraft");
+    const draft = symptomDraft || stressDraft;
+    if (!draft) return;
+
+    try {
+      const parsed = JSON.parse(draft) as { symptoms?: string; note?: string };
+      const text = parsed.symptoms || parsed.note || "";
+      const stressMatch = text.match(/stress(?: level)?\s*(\d+)/i);
+      if (stressMatch?.[1]) {
+        setStressLevel(Math.min(10, Math.max(0, Number(stressMatch[1]))));
+      }
+      if (/bloating/i.test(text)) setBloatingLevel(6);
+      if (/pain|cramp/i.test(text)) setPainLevel(6);
+      setNotes(`Voice draft: ${text}`);
+    } finally {
+      localStorage.removeItem("munaVoiceSymptomDraft");
+      localStorage.removeItem("munaVoiceStressDraft");
+    }
+  }, []);
 
   return (
     <AppShell title="Add symptoms" subtitle="Log your IBS symptoms and stress level for pattern tracking.">

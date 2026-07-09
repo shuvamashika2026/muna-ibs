@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { AppShell } from "@/components/app-shell";
 import { FormCard, inputClass, labelClass } from "@/components/form-card";
 import { SaveEntryButton } from "@/components/save-entry-button";
@@ -27,6 +27,23 @@ export default function AddMealPage() {
   const [hasGarlic, setHasGarlic] = useState(false);
   const [hasCaffeine, setHasCaffeine] = useState(false);
   const [hasAlcohol, setHasAlcohol] = useState(false);
+
+  useEffect(() => {
+    const draft = localStorage.getItem("munaVoiceMealDraft");
+    if (!draft) return;
+
+    try {
+      const parsed = JSON.parse(draft) as { mealType?: string; note?: string };
+      if (parsed.mealType) setMealType(parsed.mealType);
+      if (parsed.note) {
+        setMealName(parsed.mealType || "Voice meal");
+        setIngredients(parsed.note);
+        setNotes(`Voice draft: ${parsed.note}`);
+      }
+    } finally {
+      localStorage.removeItem("munaVoiceMealDraft");
+    }
+  }, []);
 
   async function handleFoodSearch(value: string) {
     setFoodSearch(value);

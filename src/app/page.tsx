@@ -1,6 +1,6 @@
 import Image from "next/image";
 import Link from "next/link";
-import { ArrowRight, CalendarCheck, FileText, HeartPulse, Salad } from "lucide-react";
+import { ArrowRight, CalendarCheck, FileText, Globe2, HeartPulse, Salad } from "lucide-react";
 import { DisclaimerNotice } from "@/components/disclaimer-notice";
 
 const highlights = [
@@ -38,6 +38,28 @@ export default function LandingPage() {
             >
               View dashboard
             </Link>
+          </div>
+
+          <div className="muna-dark-panel mt-8 max-w-xl rounded-[1.7rem] p-5">
+            <div className="flex items-start gap-4">
+              <span className="grid h-12 w-12 shrink-0 place-items-center rounded-2xl bg-white/10 text-[#10B981]">
+                <Globe2 className="h-6 w-6" aria-hidden="true" />
+              </span>
+              <div>
+                <p className="text-sm font-black uppercase tracking-wide text-[#10B981]">
+                  Community Impact
+                </p>
+                <p className="mt-2 text-2xl font-black text-white">
+                  95,000+ IBS community members available for early testing
+                </p>
+                <Link
+                  href="/login"
+                  className="mt-4 inline-flex rounded-2xl bg-[#10B981] px-5 py-3 text-sm font-black text-white shadow-lg"
+                >
+                  Join the waitlist
+                </Link>
+              </div>
+            </div>
           </div>
         </div>
 
