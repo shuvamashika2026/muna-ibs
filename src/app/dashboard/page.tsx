@@ -22,6 +22,7 @@ import { WaterProgress } from "@/components/dashboard/WaterProgress";
 import { SleepSummaryCard } from "@/components/dashboard/SleepSummaryCard";
 import { StatsCards } from "@/components/dashboard/StatsCards";
 import { QuickLog } from "@/components/dashboard/QuickLog";
+import { TodayPlanCard } from "@/components/dashboard/TodayPlanCard";
 
 export default function DashboardPage() {
   const [stats, setStats] = useState({
@@ -309,14 +310,7 @@ export default function DashboardPage() {
             </ul>
           </div>
 
-          <div className="rounded-2xl bg-emerald-50 p-4 shadow-sm">
-            <p className="font-bold text-emerald-950">Today&apos;s Plan</p>
-            <ul className="mt-3 list-disc space-y-2 pl-5 text-sm leading-6 text-emerald-800">
-              {stats.todayPlan.map((item) => (
-                <li key={item}>{item}</li>
-              ))}
-            </ul>
-          </div>
+          <TodayPlanCard items={stats.todayPlan} />
         </div>
       </div>
 
