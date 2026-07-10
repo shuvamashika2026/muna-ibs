@@ -146,6 +146,15 @@ export default function AiChatPage() {
     });
   }, [messages, isLoading]);
 
+  useEffect(() => {
+    const dashboardPrompt = localStorage.getItem("munaDashboardVoicePrompt");
+    if (!dashboardPrompt) return;
+
+    localStorage.removeItem("munaDashboardVoicePrompt");
+    sendMessage(dashboardPrompt, true);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
   const apiHistory = useMemo(
     () =>
       messages.map((message) => ({
