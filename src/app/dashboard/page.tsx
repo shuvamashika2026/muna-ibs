@@ -21,6 +21,7 @@ import {
   Brain,
   Check,
   CirclePlus,
+  ArrowRight,
   Droplets,
   Home,
   Mic,
@@ -407,6 +408,13 @@ function AiInsightCard({ stats }: { stats: DashboardStats }) {
         className="mt-5 inline-flex rounded-2xl bg-[#0F766E] px-5 py-3 text-sm font-black text-white shadow-[0_14px_34px_rgba(15,118,110,0.22)]"
       >
         Ask MUNA to explain
+      </Link>
+      <Link
+        href="/vision"
+        className="mt-3 flex w-full items-center justify-between rounded-full bg-gradient-to-r from-[#0F766E] via-[#10B981] to-[#0F766E] px-5 py-4 text-base font-black text-white shadow-[0_18px_44px_rgba(15,118,110,0.24)] transition duration-300 hover:-translate-y-0.5 hover:shadow-[0_24px_60px_rgba(15,118,110,0.30)]"
+      >
+        <span>🚀 Vision</span>
+        <ArrowRight className="h-5 w-5" aria-hidden="true" />
       </Link>
     </motion.section>
   );
