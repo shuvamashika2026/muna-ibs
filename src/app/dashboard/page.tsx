@@ -434,6 +434,16 @@ function ActionPlanCard({ items }: { items: string[] }) {
           </motion.div>
         ))}
       </div>
+      <Link
+        href="/health-report"
+        className="mt-5 flex w-full items-center justify-between rounded-[1.6rem] bg-gradient-to-r from-[#0F766E] via-[#10B981] to-[#0F766E] px-5 py-4 text-base font-black text-white shadow-[0_20px_50px_rgba(15,118,110,0.28)] transition duration-300 hover:-translate-y-0.5 hover:shadow-[0_28px_70px_rgba(15,118,110,0.34)]"
+      >
+        <span className="flex items-center gap-3">
+          <Sparkles className="h-5 w-5" aria-hidden="true" />
+          Generate AI Health Report
+        </span>
+        <ArrowRight className="h-5 w-5" aria-hidden="true" />
+      </Link>
     </motion.section>
   );
 }
