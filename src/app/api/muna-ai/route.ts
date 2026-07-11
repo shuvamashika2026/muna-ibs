@@ -130,14 +130,13 @@ function calculateHealthSummary(data: HealthData) {
   const latestStool = data.stool[0];
   const latestWater = data.water[0];
 
-  const pain = numberFrom(latestSymptom, ["pain_level", "pain", "severity"], 2);
-  const bloating = numberFrom(latestSymptom, ["bloating_level", "bloating"], 3);
+  const pain = numberFrom(latestSymptom, ["severity"], 2);
+  const bloating = numberFrom(latestSymptom, ["severity"], 3);
   const stress = numberFrom(latestSymptom, ["stress_level", "stress"], 3);
   const sleep = numberFrom(latestSleep, ["hours", "sleep_hours"], 7.5);
   const bristol = numberFrom(latestStool, ["bristol_type", "type"], 4);
-  const waterMl = numberFrom(latestWater, ["amount_ml"], 0);
   const waterCups = numberFrom(latestWater, ["cups"], 0);
-  const waterLiters = waterMl ? waterMl / 1000 : waterCups ? waterCups * 0.24 : 1.8;
+  const waterLiters = waterCups ? waterCups * 0.25 : 1.8;
   const exerciseLogged = data.exercise.length > 0;
 
   let gutScore = 100 - pain * 4 - bloating * 3 - Math.max(0, stress - 3) * 3;
@@ -284,8 +283,6 @@ async function retrieveHealthData(request: Request): Promise<HealthData> {
     symptoms,
     stool,
     medicationReminders,
-    medications,
-    exercise,
     weeklyReports,
     triggerFoods,
   ] = await Promise.all([
@@ -295,8 +292,6 @@ async function retrieveHealthData(request: Request): Promise<HealthData> {
     safeSelect(supabase, "symptoms", userId),
     safeSelect(supabase, "bowel_movements", userId),
     safeSelect(supabase, "medication_reminders", userId),
-    safeSelect(supabase, "medications", userId),
-    safeSelect(supabase, "exercise_logs", userId),
     safeSelect(supabase, "weekly_reports", userId),
     safeSelect(supabase, "trigger_foods", userId),
   ]);
@@ -308,8 +303,6 @@ async function retrieveHealthData(request: Request): Promise<HealthData> {
     symptoms.error,
     stool.error,
     medicationReminders.error,
-    medications.error,
-    exercise.error,
     weeklyReports.error,
     triggerFoods.error,
   ].filter((item): item is string => Boolean(item));
@@ -321,8 +314,8 @@ async function retrieveHealthData(request: Request): Promise<HealthData> {
     sleep: sleep.rows,
     symptoms: symptoms.rows,
     stool: stool.rows,
-    medications: [...medicationReminders.rows, ...medications.rows],
-    exercise: exercise.rows,
+    medications: medicationReminders.rows,
+    exercise: [],
     flareHistory: weeklyReports.rows,
     triggerFoods: triggerFoods.rows,
     accessNotes,

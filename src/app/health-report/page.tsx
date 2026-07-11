@@ -170,14 +170,13 @@ export default function HealthReportPage() {
         return;
       }
 
-      const [meals, symptoms, stools, water, sleep, reminders, medications] = await Promise.all([
+      const [meals, symptoms, stools, water, sleep, reminders] = await Promise.all([
         safeQuery("meals", user.id),
         safeQuery("symptoms", user.id),
         safeQuery("bowel_movements", user.id),
         safeQuery("water_logs", user.id),
         safeQuery("sleep_logs", user.id),
         safeQuery("medication_reminders", user.id),
-        safeQuery("medications", user.id),
       ]);
 
       setReportData({
@@ -186,7 +185,7 @@ export default function HealthReportPage() {
         stools: stools.rows,
         water: water.rows,
         sleep: sleep.rows,
-        medication: [...reminders.rows, ...medications.rows],
+        medication: reminders.rows,
         accessNotes: [
           meals.error && `Meals: ${meals.error}`,
           symptoms.error && `Symptoms: ${symptoms.error}`,
@@ -194,7 +193,6 @@ export default function HealthReportPage() {
           water.error && `Water: ${water.error}`,
           sleep.error && `Sleep: ${sleep.error}`,
           reminders.error && `Medication reminders: ${reminders.error}`,
-          medications.error && `Medication: ${medications.error}`,
         ].filter((item): item is string => Boolean(item)),
         isLoading: false,
       });

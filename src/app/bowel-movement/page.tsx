@@ -38,18 +38,14 @@ export default function BowelMovementPage() {
           </select>
         </label>
         <SaveEntryButton
-  table="bowel_movements"
-  getPayload={() => ({
-    movement_date: new Date().toISOString().slice(0, 10),
-    bristol_type: type,
-    urgency_level:
-      urgency === "Low" ? 2 :
-      urgency === "Normal" ? 5 :
-      urgency === "High" ? 8 :
-      10,
-    notes: `Urgency: ${urgency}`,
-  })}
-/>
+          table="bowel_movements"
+          getPayload={() => ({
+            bristol_type: type,
+            urgency,
+            logged_at: new Date().toISOString(),
+            notes: `Urgency: ${urgency}`,
+          })}
+        />
       </FormCard>
     </AppShell>
   );

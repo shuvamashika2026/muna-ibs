@@ -56,10 +56,8 @@ export default function WaterPage() {
           <SaveEntryButton
             table="water_logs"
             getPayload={() => ({
-              amount_ml: amountMl,
-              source: "manual",
-              notes,
-              log_date: new Date().toISOString().slice(0, 10),
+              cups: Math.max(1, Math.round(amountMl / 250)),
+              logged_on: new Date().toISOString().slice(0, 10),
             })}
           />
         </div>

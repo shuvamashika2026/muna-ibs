@@ -60,13 +60,12 @@ export default function MedicationPage() {
         </div>
 
         <SaveEntryButton
-          table="medications"
+          table="medication_reminders"
           getPayload={() => ({
             medicine_name: medicineName,
-            dose,
-            frequency,
-            notes,
-            active: true,
+            reminder_time: "09:00",
+            notes: [notes, dose ? `Dose: ${dose}` : "", `Frequency: ${frequency}`].filter(Boolean).join("\n"),
+            is_active: true,
           })}
         />
       </FormCard>

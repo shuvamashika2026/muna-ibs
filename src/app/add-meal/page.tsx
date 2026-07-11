@@ -215,24 +215,29 @@ export default function AddMealPage() {
         <SaveEntryButton
           table="meals"
           getPayload={() => ({
-            meal_date: new Date().toISOString().slice(0, 10),
-            meal_time: new Date().toISOString(),
             meal_type: mealType,
-            meal_name: mealName,
-            ingredients,
-            drinks,
-            portion_size: portionSize,
-            location_type: locationType,
-            cooking_method: cookingMethod,
-            fodmap_level: fodmapLevel,
-            is_spicy: isSpicy,
-            has_dairy: hasDairy,
-            has_gluten: hasGluten,
-            has_onion: hasOnion,
-            has_garlic: hasGarlic,
-            has_caffeine: hasCaffeine,
-            has_alcohol: hasAlcohol,
-            notes,
+            foods: [mealName, ingredients, drinks].filter(Boolean).join(" | ") || "Meal not specified",
+            eaten_at: new Date().toISOString(),
+            notes: [
+              notes,
+              `Portion: ${portionSize}`,
+              `Location: ${locationType}`,
+              cookingMethod ? `Cooking: ${cookingMethod}` : "",
+              `FODMAP: ${fodmapLevel}`,
+              `Tags: ${[
+                isSpicy && "spicy",
+                hasDairy && "dairy",
+                hasGluten && "gluten",
+                hasOnion && "onion",
+                hasGarlic && "garlic",
+                hasCaffeine && "caffeine",
+                hasAlcohol && "alcohol",
+              ]
+                .filter(Boolean)
+                .join(", ") || "none"}`,
+            ]
+              .filter(Boolean)
+              .join("\n"),
           })}
         />
       </FormCard>

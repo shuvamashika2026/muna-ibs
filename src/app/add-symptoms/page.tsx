@@ -105,18 +105,26 @@ export default function AddSymptomsPage() {
         <SaveEntryButton
           table="symptoms"
           getPayload={() => ({
-            symptom_date: new Date().toISOString().slice(0, 10),
-            symptom_time: new Date().toISOString(),
-            pain_level: painLevel,
-            bloating_level: bloatingLevel,
-            gas_level: gasLevel,
+            symptoms: [
+              `Pain ${painLevel}/10`,
+              `Bloating ${bloatingLevel}/10`,
+              `Gas ${gasLevel}/10`,
+              nausea && "nausea",
+              constipation && "constipation",
+              diarrhea && "diarrhea",
+            ]
+              .filter(Boolean)
+              .join(", "),
+            severity: Math.max(painLevel, bloatingLevel, gasLevel),
             stress_level: stressLevel,
-            energy_level: energyLevel,
-            mood,
-            nausea,
-            constipation,
-            diarrhea,
-            notes,
+            logged_at: new Date().toISOString(),
+            notes: [
+              notes,
+              `Energy: ${energyLevel}/10`,
+              `Mood: ${mood}`,
+            ]
+              .filter(Boolean)
+              .join("\n"),
           })}
         />
       </FormCard>

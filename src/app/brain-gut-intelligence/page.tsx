@@ -164,14 +164,13 @@ export default function BrainGutIntelligencePage() {
         return;
       }
 
-      const [meals, water, sleep, symptoms, stools, reminders, medications] = await Promise.all([
+      const [meals, water, sleep, symptoms, stools, reminders] = await Promise.all([
         safeQuery("meals", user.id),
         safeQuery("water_logs", user.id),
         safeQuery("sleep_logs", user.id),
         safeQuery("symptoms", user.id),
         safeQuery("bowel_movements", user.id),
         safeQuery("medication_reminders", user.id),
-        safeQuery("medications", user.id),
       ]);
 
       setData({
@@ -180,7 +179,7 @@ export default function BrainGutIntelligencePage() {
         sleep: sleep.rows,
         symptoms: symptoms.rows,
         stools: stools.rows,
-        medications: [...reminders.rows, ...medications.rows],
+        medications: reminders.rows,
         accessNotes: [
           meals.error && `Meals: ${meals.error}`,
           water.error && `Water: ${water.error}`,
@@ -188,7 +187,6 @@ export default function BrainGutIntelligencePage() {
           symptoms.error && `Symptoms: ${symptoms.error}`,
           stools.error && `Stool: ${stools.error}`,
           reminders.error && `Medication reminders: ${reminders.error}`,
-          medications.error && `Medication: ${medications.error}`,
         ].filter((item): item is string => Boolean(item)),
         isLoading: false,
       });

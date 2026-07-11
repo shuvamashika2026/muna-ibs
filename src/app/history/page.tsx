@@ -4,18 +4,20 @@ import { useEffect, useState } from "react";
 import { AppShell } from "@/components/app-shell";
 import { supabase } from "@/lib/supabase";
 
+type HistoryRow = { id: string } & Record<string, string | number | boolean | null>;
+
 export default function HistoryPage() {
   const [selectedDate, setSelectedDate] = useState(
     new Date().toISOString().slice(0, 10)
   );
 
   const [data, setData] = useState({
-    meals: [] as any[],
-    symptoms: [] as any[],
-    bowel: [] as any[],
-    water: [] as any[],
-    sleep: [] as any[],
-    medications: [] as any[],
+    meals: [] as HistoryRow[],
+    symptoms: [] as HistoryRow[],
+    bowel: [] as HistoryRow[],
+    water: [] as HistoryRow[],
+    sleep: [] as HistoryRow[],
+    medications: [] as HistoryRow[],
   });
 
   useEffect(() => {
@@ -30,14 +32,18 @@ export default function HistoryPage() {
         return;
       }
 
+      const nextDate = new Date(`${selectedDate}T00:00:00`);
+      nextDate.setDate(nextDate.getDate() + 1);
+      const nextDateString = nextDate.toISOString().slice(0, 10);
+
       const [meals, symptoms, bowel, water, sleep, medications] =
         await Promise.all([
-          supabase.from("meals").select("*").eq("user_id", user.id).eq("meal_date", selectedDate),
-          supabase.from("symptoms").select("*").eq("user_id", user.id).eq("symptom_date", selectedDate),
-          supabase.from("bowel_movements").select("*").eq("user_id", user.id).eq("movement_date", selectedDate),
-          supabase.from("water_logs").select("*").eq("user_id", user.id).eq("log_date", selectedDate),
-          supabase.from("sleep_logs").select("*").eq("user_id", user.id).eq("sleep_date", selectedDate),
-          supabase.from("medications").select("*").eq("user_id", user.id),
+          supabase.from("meals").select("*").eq("user_id", user.id).gte("eaten_at", selectedDate).lt("eaten_at", nextDateString),
+          supabase.from("symptoms").select("*").eq("user_id", user.id).gte("logged_at", selectedDate).lt("logged_at", nextDateString),
+          supabase.from("bowel_movements").select("*").eq("user_id", user.id).gte("logged_at", selectedDate).lt("logged_at", nextDateString),
+          supabase.from("water_logs").select("*").eq("user_id", user.id).eq("logged_on", selectedDate),
+          supabase.from("sleep_logs").select("*").eq("user_id", user.id).eq("slept_on", selectedDate),
+          supabase.from("medication_reminders").select("*").eq("user_id", user.id).eq("is_active", true),
         ]);
 
       setData({
@@ -46,7 +52,11 @@ export default function HistoryPage() {
         bowel: bowel.data ?? [],
         water: water.data ?? [],
         sleep: sleep.data ?? [],
-        medications: medications.data ?? [],
+        medications: (medications.data ?? []).map((row) => ({
+          ...row,
+          dose: row.reminder_time,
+          frequency: row.notes ?? "",
+        })),
       });
     }
 
@@ -54,7 +64,7 @@ export default function HistoryPage() {
   }, [selectedDate]);
 
   const waterTotal = data.water.reduce(
-    (sum, item) => sum + Number(item.amount_ml || 0),
+    (sum, item) => sum + Number(item.cups || 0) * 250,
     0
   );
 
@@ -82,7 +92,7 @@ export default function HistoryPage() {
             <ul className="mt-3 space-y-2">
               {data.meals.map((meal) => (
                 <li key={meal.id} className="rounded-lg bg-emerald-50 p-3">
-                  <strong>{meal.meal_type}</strong>: {meal.meal_name}
+                  <strong>{meal.meal_type}</strong>: {meal.foods}
                   {meal.notes ? <p className="text-sm text-slate-600">{meal.notes}</p> : null}
                 </li>
               ))}
@@ -98,8 +108,8 @@ export default function HistoryPage() {
             <ul className="mt-3 space-y-2">
               {data.symptoms.map((symptom) => (
                 <li key={symptom.id} className="rounded-lg bg-sky-50 p-3">
-                  Pain {symptom.pain_level}/10, Bloating {symptom.bloating_level}/10,
-                  Gas {symptom.gas_level}/10, Stress {symptom.stress_level}/10
+                  Severity {symptom.severity}/10, Stress {symptom.stress_level}/10
+                  <p className="text-sm text-slate-600">{symptom.symptoms}</p>
                   {symptom.notes ? <p className="text-sm text-slate-600">{symptom.notes}</p> : null}
                 </li>
               ))}
@@ -115,7 +125,7 @@ export default function HistoryPage() {
             <ul className="mt-3 space-y-2">
               {data.bowel.map((item) => (
                 <li key={item.id} className="rounded-lg bg-teal-50 p-3">
-                  Bristol Type {item.bristol_type}, Urgency {item.urgency_level}/10
+                  Bristol Type {item.bristol_type}, Urgency {item.urgency}
                   {item.notes ? <p className="text-sm text-slate-600">{item.notes}</p> : null}
                 </li>
               ))}

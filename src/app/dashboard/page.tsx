@@ -149,7 +149,7 @@ export default function DashboardPage() {
         .from("water_logs")
         .select("*")
         .eq("user_id", user.id)
-        .eq("log_date", today);
+        .eq("logged_on", today);
 
       const { data: latestSleep } = await supabase
         .from("sleep_logs")
@@ -159,13 +159,13 @@ export default function DashboardPage() {
         .limit(1)
         .maybeSingle();
 
-      const pain = Number(latestSymptom?.pain_level ?? latestSymptom?.severity ?? 2);
-      const bloating = Number(latestSymptom?.bloating_level ?? 3);
+      const pain = Number(latestSymptom?.severity ?? 2);
+      const bloating = Number(latestSymptom?.severity ?? 3);
       const stress = Number(latestSymptom?.stress_level ?? 3);
       const bristolType = Number(latestBowel?.bristol_type ?? 4);
       const sleepHours = Number(latestSleep?.hours ?? 7.5);
       const waterTotal =
-        waterLogs?.reduce((sum, row) => sum + Number(row.amount_ml || row.cups * 240 || 0), 0) || 2100;
+        waterLogs?.reduce((sum, row) => sum + Number(row.cups || 0) * 250, 0) || 2100;
       const waterLiters = waterTotal / 1000;
 
       const risk = calculateRisk({

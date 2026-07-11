@@ -6,9 +6,8 @@ import { supabase } from "@/lib/supabase";
 import { PainChart } from "@/components/charts/PainChart";
 
 type SymptomRow = {
-  symptom_date: string;
-  pain_level: number | null;
-  bloating_level: number | null;
+  logged_at: string;
+  severity: number | null;
   stress_level: number | null;
 };
 
@@ -40,15 +39,15 @@ export default function AnalyticsPage() {
 
       const { data } = await supabase
         .from("symptoms")
-        .select("symptom_date, pain_level, bloating_level, stress_level")
+        .select("logged_at, severity, stress_level")
         .eq("user_id", user.id)
-        .gte("symptom_date", fromDate.toISOString().slice(0, 10))
-        .order("symptom_date", { ascending: true });
+        .gte("logged_at", fromDate.toISOString())
+        .order("logged_at", { ascending: true });
 
       const rows = (data ?? []) as SymptomRow[];
 
-      const painValues = rows.map((r) => Number(r.pain_level ?? 0));
-      const bloatingValues = rows.map((r) => Number(r.bloating_level ?? 0));
+      const painValues = rows.map((r) => Number(r.severity ?? 0));
+      const bloatingValues = rows.map((r) => Number(r.severity ?? 0));
       const stressValues = rows.map((r) => Number(r.stress_level ?? 0));
 
       const average = (values: number[]) =>
@@ -66,8 +65,8 @@ export default function AnalyticsPage() {
 
       setPainData(
         rows.map((row) => ({
-          date: row.symptom_date,
-          pain: Number(row.pain_level ?? 0),
+          date: row.logged_at.slice(0, 10),
+          pain: Number(row.severity ?? 0),
         }))
       );
     }

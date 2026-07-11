@@ -70,10 +70,9 @@ export default function SleepPage() {
         <SaveEntryButton
           table="sleep_logs"
           getPayload={() => ({
-            sleep_date: new Date().toISOString().slice(0, 10),
             hours,
             quality,
-            notes,
+            slept_on: new Date().toISOString().slice(0, 10),
           })}
         />
       </FormCard>

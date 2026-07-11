@@ -39,7 +39,7 @@ export default function ProfilePage() {
       }
 
       const { data } = await supabase
-        .from("profiles")
+        .from("users")
         .select("*")
         .eq("id", user.id)
         .maybeSingle();
@@ -59,7 +59,7 @@ export default function ProfilePage() {
           current_medication: data.current_medication ?? "",
           dietary_preference: data.dietary_preference ?? "",
           preferred_units: data.preferred_units ?? "metric",
-          water_goal: data.water_goal?.toString() ?? "2500",
+          water_goal: data.daily_water_goal ? String(Number(data.daily_water_goal) * 250) : "2500",
           sleep_goal: data.sleep_goal?.toString() ?? "7.5",
           emergency_contact: data.emergency_contact ?? "",
         });
@@ -80,25 +80,10 @@ export default function ProfilePage() {
       return;
     }
 
-    const { error } = await supabase.from("profiles").upsert({
+    const { error } = await supabase.from("users").upsert({
       id: user.id,
       full_name: form.full_name,
-      age: form.age ? Number(form.age) : null,
-      date_of_birth: form.date_of_birth || null,
-      gender: form.gender,
-      country: form.country,
-      ibs_type: form.ibs_type,
-      diagnosis_year: form.diagnosis_year ? Number(form.diagnosis_year) : null,
-      height_cm: form.height_cm ? Number(form.height_cm) : null,
-      weight_kg: form.weight_kg ? Number(form.weight_kg) : null,
-      food_allergies: form.food_allergies,
-      current_medication: form.current_medication,
-      dietary_preference: form.dietary_preference,
-      preferred_units: form.preferred_units,
-      water_goal: form.water_goal ? Number(form.water_goal) : 2500,
-      sleep_goal: form.sleep_goal ? Number(form.sleep_goal) : 7.5,
-      emergency_contact: form.emergency_contact,
-      updated_at: new Date().toISOString(),
+      daily_water_goal: form.water_goal ? Math.max(1, Math.round(Number(form.water_goal) / 250)) : 8,
     });
 
     setMessage(error ? error.message : "Profile saved successfully.");
