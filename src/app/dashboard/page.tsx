@@ -1,7 +1,8 @@
-"use client";
+﻿"use client";
 
 import Link from "next/link";
 import { useEffect, useRef, useState } from "react";
+import type { ElementType, ReactNode } from "react";
 import { motion } from "framer-motion";
 import type { Variants } from "framer-motion";
 import {
@@ -17,6 +18,7 @@ import {
 } from "recharts";
 import {
   Award,
+  BookOpen,
   Bot,
   Brain,
   Check,
@@ -29,6 +31,7 @@ import {
   NotebookPen,
   ShieldCheck,
   Sparkles,
+  Target,
   UserRound,
 } from "lucide-react";
 import { calculateRisk } from "@/lib/risk";
@@ -110,6 +113,10 @@ export default function DashboardPage() {
     bristolType: 4,
   });
   const [isListening, setIsListening] = useState(false);
+  const [journeyStarted, setJourneyStarted] = useState(false);
+  const [completedJourneySteps, setCompletedJourneySteps] = useState<string[]>([]);
+  const [todayMood, setTodayMood] = useState<"Better" | "About the same" | "Worse" | null>(null);
+  const [isWeeklyProgressOpen, setIsWeeklyProgressOpen] = useState(false);
   const recognitionRef = useRef<SpeechRecognitionInstance | null>(null);
 
   useEffect(() => {
@@ -209,10 +216,57 @@ export default function DashboardPage() {
     "Walk gently after dinner",
   ];
   const communityMetrics = [
-    "95,000+ IBS community members for early testing",
-    "Most common weekly trigger: stress + poor sleep",
-    "Members report lower symptoms on 7h+ sleep days",
+    "Learning patterns takes time, and small daily check-ins can make your story easier to understand.",
+    "Your logs can help you prepare clearer conversations with qualified healthcare professionals.",
+    "Gentle routines, regular meals, sleep, and hydration are common foundations for daily self-awareness.",
   ];
+  const dailyFocus =
+    stats.stress >= 6
+      ? "Calm your nervous system before meals"
+      : stats.sleepHours < 7
+        ? "Protect sleep recovery tonight"
+        : stats.waterLiters < 1.8
+          ? "Build steady hydration"
+          : "Keep your gut rhythm steady";
+  const dailyLesson =
+    stats.stress >= 6
+      ? "Stress can amplify gut sensitivity through the brain-gut connection. A short reset before dinner may help you notice patterns calmly."
+      : "Small repeated habits like hydration, gentle movement, sleep, and simple meals can support a steadier brain-gut routine.";
+  const journeySteps = [
+    {
+      id: "reset",
+      title: "Brain-Gut Reset",
+      detail: "Start with a calm reset for breath, focus, body awareness, and reflection.",
+      href: "/brain-gut-reset",
+      icon: Brain,
+    },
+    {
+      id: "lesson",
+      title: "Daily Lesson",
+      detail: dailyLesson,
+      icon: BookOpen,
+    },
+    {
+      id: "focus",
+      title: "Today's Focus",
+      detail: dailyFocus,
+      icon: Target,
+    },
+    {
+      id: "reflection",
+      title: "Evening Reflection",
+      detail: "Come back tonight and note what helped, what felt hard, and what you want to repeat.",
+      icon: Moon,
+    },
+  ];
+  const journeyProgress = Math.round((completedJourneySteps.length / journeySteps.length) * 100);
+
+  function toggleJourneyStep(stepId: string) {
+    setJourneyStarted(true);
+    setCompletedJourneySteps((current) =>
+      current.includes(stepId) ? current.filter((item) => item !== stepId) : [...current, stepId]
+    );
+  }
 
   function startVoiceAsk() {
     const speechWindow = window as WindowWithSpeech;
@@ -259,39 +313,39 @@ export default function DashboardPage() {
         animate="visible"
         variants={{ visible: { transition: { staggerChildren: 0.07 } } }}
       >
-        <motion.section variants={variants} className="relative overflow-hidden rounded-[2.25rem] p-6 md:p-8 muna-dark-panel">
-          <div className="absolute right-[-4rem] top-[-5rem] h-64 w-64 rounded-full bg-[#10B981]/25 blur-3xl" />
-          <div className="relative grid gap-6 lg:grid-cols-[1.2fr_0.8fr] lg:items-end">
-            <div>
-              <p className="text-sm font-black uppercase tracking-[0.24em] text-[#10B981]">MUNA AI Health Dashboard</p>
-              <h1 className="mt-3 text-4xl font-black tracking-normal text-white md:text-6xl">
-                {greeting()}, {stats.userName} <span aria-hidden="true">👋</span>
-              </h1>
-              <p className="mt-4 max-w-2xl text-base font-semibold leading-7 text-emerald-50">
-                Your brain-gut intelligence layer for flare prediction, positive habits, personal triggers,
-                and daily coaching.
-              </p>
-            </div>
-            <div className="rounded-[1.75rem] border border-white/10 bg-white/10 p-4 backdrop-blur-2xl">
-              <p className="text-sm font-bold text-emerald-50">AI status</p>
-              <p className="mt-2 text-2xl font-black text-white">Personalized from today&apos;s logs</p>
-              <p className="mt-2 text-sm font-semibold text-emerald-100">Updated just now</p>
-            </div>
-          </div>
-        </motion.section>
+        <CoachingHero stats={stats} />
+        <TodaysCheckInCard mood={todayMood} onSelectMood={setTodayMood} />
 
-        <section className="grid gap-4 xl:grid-cols-[1fr_0.85fr_0.85fr]">
-          <GutScoreCard score={stats.gutScore} />
-          <FlareRiskGauge risk={stats.flareRisk} confidence={stats.confidence} />
-          <BrainGutBalance value={brainGutBalance} />
+        <section className="grid gap-4 xl:grid-cols-[1.45fr_0.55fr]">
+          <TodaysJourneySection
+            journeyStarted={journeyStarted}
+            progress={journeyProgress}
+            completedSteps={completedJourneySteps}
+            steps={journeySteps}
+            onStart={() => setJourneyStarted(true)}
+            onToggleStep={toggleJourneyStep}
+          />
+          <HealthSnapshotCard stats={stats} />
+        </section>
+
+        <section className="pt-2">
+          <div className="mb-4">
+            <p className="text-sm font-black uppercase tracking-[0.2em] text-[#0F766E]">Trackers and insights</p>
+            <h2 className="mt-2 text-3xl font-black tracking-normal text-[#0F172A]">Your existing MUNA trackers</h2>
+          </div>
+          <div className="grid gap-4 xl:grid-cols-[1fr_0.85fr_0.85fr]">
+            <GutScoreCard score={stats.gutScore} />
+            <FlareRiskGauge risk={stats.flareRisk} confidence={stats.confidence} />
+            <BrainGutBalance value={brainGutBalance} />
+          </div>
         </section>
 
         <section className="grid gap-4 lg:grid-cols-[1.05fr_0.95fr]">
-          <AiInsightCard stats={stats} />
+          <DailyCoachCard stats={stats} />
           <ActionPlanCard items={actionPlan} />
         </section>
 
-        <WeeklyTrends />
+        <WeeklyProgressSection isOpen={isWeeklyProgressOpen} onToggle={() => setIsWeeklyProgressOpen((value) => !value)} />
 
         <section className="grid gap-4 lg:grid-cols-[0.9fr_1.1fr]">
           <AchievementBadges />
@@ -302,6 +356,330 @@ export default function DashboardPage() {
       <FloatingAskMuna isListening={isListening} onClick={startVoiceAsk} />
       <BottomNavigation />
     </AppShell>
+  );
+}
+
+function CoachingHero({ stats }: { stats: DashboardStats }) {
+  return (
+    <motion.section variants={variants} className="relative overflow-hidden rounded-[2rem] bg-white p-5 shadow-[0_18px_56px_rgba(15,118,110,0.10)] ring-1 ring-emerald-100 md:p-6">
+      <div className="absolute right-[-4rem] top-[-6rem] h-52 w-52 rounded-full bg-[#D1FAE5] blur-3xl" />
+      <div className="relative grid gap-4 lg:grid-cols-[1.25fr_0.75fr] lg:items-end">
+        <div>
+          <p className="text-sm font-black uppercase tracking-[0.24em] text-[#0F766E]">MUNA Coaching</p>
+          <h1 className="mt-2 text-4xl font-black tracking-normal text-[#0F172A] md:text-5xl">
+            {greeting()}, {stats.userName}
+          </h1>
+          <p className="mt-3 max-w-2xl text-base font-semibold leading-7 text-slate-600">
+            Today, let&apos;s calm the brain-gut loop with one focus, one lesson, and one simple action.
+          </p>
+        </div>
+        <div className="grid grid-cols-2 gap-2 rounded-[1.5rem] bg-[#ECFDF5] p-3">
+          <HeroMetric label="Gut score" value={`${stats.gutScore}/100`} />
+          <HeroMetric label="Risk" value={stats.flareRisk} />
+          <HeroMetric label="Sleep" value={`${stats.sleepHours.toFixed(1)}h`} />
+          <HeroMetric label="Stress" value={`${stats.stress}/10`} />
+        </div>
+      </div>
+    </motion.section>
+  );
+}
+
+function TodaysCheckInCard({
+  mood,
+  onSelectMood,
+}: {
+  mood: "Better" | "About the same" | "Worse" | null;
+  onSelectMood: (mood: "Better" | "About the same" | "Worse") => void;
+}) {
+  const options = [
+    { label: "Better", face: "😊" },
+    { label: "About the same", face: "😐" },
+    { label: "Worse", face: "😣" },
+  ] as const;
+
+  return (
+    <motion.section variants={variants} className="muna-card rounded-[2rem] p-5">
+      <div className="flex flex-col gap-4 md:flex-row md:items-center md:justify-between">
+        <div>
+          <p className="text-sm font-black uppercase tracking-[0.2em] text-[#0F766E]">Today&apos;s Check-in</p>
+          <h2 className="mt-2 text-2xl font-black text-[#0F172A]">How does your gut feel today?</h2>
+        </div>
+        {mood ? <p className="rounded-full bg-[#ECFDF5] px-4 py-2 text-sm font-black text-[#0F766E]">Mood: {mood}</p> : null}
+      </div>
+      <div className="mt-5 grid gap-3 sm:grid-cols-3">
+        {options.map((option) => {
+          const isSelected = mood === option.label;
+          return (
+            <button
+              key={option.label}
+              type="button"
+              onClick={() => onSelectMood(option.label)}
+              className={`min-h-16 rounded-2xl px-4 py-3 text-left text-base font-black transition ${
+                isSelected
+                  ? "bg-[#0F766E] text-white shadow-[0_14px_34px_rgba(15,118,110,0.22)]"
+                  : "bg-[#ECFDF5] text-[#0F172A] hover:bg-[#D1FAE5]"
+              }`}
+            >
+              <span className="mr-2" aria-hidden="true">{option.face}</span>
+              {option.label}
+            </button>
+          );
+        })}
+      </div>
+    </motion.section>
+  );
+}
+
+function HeroMetric({ label, value }: { label: string; value: string }) {
+  return (
+    <div className="rounded-2xl bg-white/80 p-3">
+      <p className="text-xs font-black uppercase tracking-wide text-slate-500">{label}</p>
+      <p className="mt-1 text-xl font-black text-[#0F766E]">{value}</p>
+    </div>
+  );
+}
+
+function TodaysJourneySection({
+  journeyStarted,
+  progress,
+  completedSteps,
+  steps,
+  onStart,
+  onToggleStep,
+}: {
+  journeyStarted: boolean;
+  progress: number;
+  completedSteps: string[];
+  steps: {
+    id: string;
+    title: string;
+    detail: string;
+    href?: string;
+    icon: ElementType;
+  }[];
+  onStart: () => void;
+  onToggleStep: (stepId: string) => void;
+}) {
+  return (
+    <motion.section variants={variants} className="muna-card rounded-[2rem] p-5 md:p-6">
+      <div className="flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
+        <div>
+          <p className="text-sm font-black uppercase tracking-[0.2em] text-[#0F766E]">Today&apos;s Journey</p>
+          <h2 className="mt-2 text-3xl font-black tracking-normal text-[#0F172A]">Your guided daily coaching flow</h2>
+          <p className="mt-3 max-w-2xl text-sm font-semibold leading-6 text-slate-600">
+            Complete a simple four-step rhythm: reset, learn, focus, and reflect. Progress is stored only on this screen for now.
+          </p>
+        </div>
+        <div className="rounded-[1.5rem] bg-[#ECFDF5] p-4 text-center">
+          <p className="text-xs font-black uppercase tracking-wide text-slate-500">Progress</p>
+          <p className="mt-1 text-3xl font-black text-[#0F766E]">{completedSteps.length}/4</p>
+        </div>
+      </div>
+
+      <button
+        type="button"
+        onClick={onStart}
+        className="mt-5 flex min-h-16 w-full items-center justify-between rounded-[1.6rem] bg-gradient-to-r from-[#0F766E] via-[#10B981] to-[#0F766E] px-5 py-4 text-left text-base font-black text-white shadow-[0_20px_50px_rgba(15,118,110,0.28)] transition duration-300 hover:-translate-y-0.5 hover:shadow-[0_28px_70px_rgba(15,118,110,0.34)]"
+      >
+        <span>
+          <span className="block">Start Today&apos;s Journey</span>
+          <span className="mt-1 block text-xs font-semibold text-emerald-50">4 steps · about 6 minutes</span>
+        </span>
+        <ArrowRight className="h-5 w-5 shrink-0" aria-hidden="true" />
+      </button>
+
+      <div className="mt-5">
+        <div className="flex items-center justify-between text-xs font-black uppercase tracking-wide text-slate-500">
+          <span>{journeyStarted ? "Journey active" : "Not started"}</span>
+          <span>{progress}%</span>
+        </div>
+        <div className="mt-2 h-3 rounded-full bg-emerald-50">
+          <motion.div
+            className="h-3 rounded-full bg-gradient-to-r from-[#0F766E] to-[#10B981]"
+            animate={{ width: `${progress}%` }}
+            transition={{ duration: 0.35, ease: "easeOut" }}
+          />
+        </div>
+      </div>
+
+      <div className="mt-5 grid gap-3 md:grid-cols-2">
+        {steps.map((step, index) => (
+          <JourneyStepCard
+            key={step.id}
+            step={step}
+            index={index}
+            isComplete={completedSteps.includes(step.id)}
+            onToggle={() => onToggleStep(step.id)}
+          />
+        ))}
+      </div>
+    </motion.section>
+  );
+}
+
+function JourneyStepCard({
+  step,
+  index,
+  isComplete,
+  onToggle,
+}: {
+  step: {
+    id: string;
+    title: string;
+    detail: string;
+    href?: string;
+    icon: ElementType;
+  };
+  index: number;
+  isComplete: boolean;
+  onToggle: () => void;
+}) {
+  const Icon = step.icon;
+
+  return (
+    <div className={`rounded-[1.5rem] p-4 ring-1 ${isComplete ? "bg-[#ECFDF5] ring-emerald-200" : "bg-white ring-emerald-100"}`}>
+      <div className="flex items-start gap-3">
+        <span className={`grid h-11 w-11 shrink-0 place-items-center rounded-2xl ${isComplete ? "bg-[#0F766E] text-white" : "bg-[#D1FAE5] text-[#0F766E]"}`}>
+          <Icon className="h-5 w-5" aria-hidden="true" />
+        </span>
+        <div className="min-w-0">
+          <p className="text-xs font-black uppercase tracking-wide text-slate-500">Step {index + 1}</p>
+          <h3 className="mt-1 text-lg font-black leading-6 text-[#0F172A]">{step.title}</h3>
+          <p className="mt-2 text-sm font-semibold leading-6 text-slate-600">{step.detail}</p>
+        </div>
+      </div>
+      <div className="mt-4 flex flex-col gap-2 sm:flex-row">
+        {step.href ? (
+          <Link
+            href={step.href}
+            className="inline-flex min-h-11 flex-1 items-center justify-center rounded-2xl bg-[#0F766E] px-4 py-2 text-sm font-black text-white"
+          >
+            Open
+          </Link>
+        ) : null}
+        <button
+          type="button"
+          onClick={onToggle}
+          className={`inline-flex min-h-11 flex-1 items-center justify-center rounded-2xl px-4 py-2 text-sm font-black ${
+            isComplete ? "bg-white text-[#0F766E] ring-1 ring-emerald-100" : "bg-[#ECFDF5] text-[#0F766E]"
+          }`}
+        >
+          {isComplete ? "Completed" : "Mark done"}
+        </button>
+      </div>
+    </div>
+  );
+}
+
+function TodaysFocusCard({ focus, stats }: { focus: string; stats: DashboardStats }) {
+  return (
+    <CoachCard icon={Target} eyebrow="Today's Focus" title={focus}>
+      <p className="text-sm font-semibold leading-6 text-slate-600">
+        Start with the signal most likely to support a calmer day: stress {stats.stress}/10, sleep{" "}
+        {stats.sleepHours.toFixed(1)}h, water {stats.waterLiters.toFixed(1)}L.
+      </p>
+    </CoachCard>
+  );
+}
+
+function BrainGutResetCard() {
+  return (
+    <motion.section variants={variants} className="rounded-[2rem] bg-gradient-to-br from-[#0F766E] to-[#10B981] p-5 text-white shadow-[0_22px_60px_rgba(15,118,110,0.25)]">
+      <div className="flex items-center gap-3">
+        <span className="grid h-11 w-11 place-items-center rounded-2xl bg-white/15">
+          <Brain className="h-5 w-5" aria-hidden="true" />
+        </span>
+        <div>
+          <p className="text-xs font-black uppercase tracking-[0.2em] text-emerald-50">Brain-Gut Reset</p>
+          <h2 className="text-2xl font-black">3-minute calm reset</h2>
+        </div>
+      </div>
+      <p className="mt-4 text-sm font-semibold leading-6 text-emerald-50">
+        A gentle framework for breath, focus, body awareness, and reflection.
+      </p>
+      <Link
+        href="/brain-gut-reset"
+        className="mt-5 flex w-full items-center justify-between rounded-2xl bg-white px-4 py-3 text-sm font-black text-[#0F766E]"
+      >
+        Start reset
+        <ArrowRight className="h-5 w-5" aria-hidden="true" />
+      </Link>
+    </motion.section>
+  );
+}
+
+function DailyLessonCard({ lesson }: { lesson: string }) {
+  return (
+    <CoachCard icon={BookOpen} eyebrow="Daily Lesson" title="One thing to remember">
+      <p className="text-sm font-semibold leading-6 text-slate-600">{lesson}</p>
+    </CoachCard>
+  );
+}
+
+function DailyActionCard({ action }: { action: string }) {
+  return (
+    <CoachCard icon={Check} eyebrow="Daily Action" title={action}>
+      <p className="text-sm font-semibold leading-6 text-slate-600">
+        Keep it small and achievable. One completed action is better than a complicated plan.
+      </p>
+    </CoachCard>
+  );
+}
+
+function HealthSnapshotCard({ stats }: { stats: DashboardStats }) {
+  const items = [
+    { label: "Gut Score", value: `${stats.gutScore}/100`, icon: ShieldCheck },
+    { label: "Flare Risk", value: stats.flareRisk, icon: Sparkles },
+    { label: "Stress", value: `${stats.stress}/10`, icon: Brain },
+    { label: "Sleep", value: `${stats.sleepHours.toFixed(1)}h`, icon: Moon },
+    { label: "Water", value: `${stats.waterLiters.toFixed(1)}L`, icon: Droplets },
+    { label: "Bristol", value: `Type ${stats.bristolType}`, icon: NotebookPen },
+  ];
+
+  return (
+    <motion.section variants={variants} className="muna-card rounded-[2rem] p-5 md:p-6">
+      <p className="text-sm font-black uppercase tracking-wide text-[#0F766E]">Health Snapshot</p>
+      <h2 className="mt-2 text-2xl font-black text-[#0F172A]">Today&apos;s body signals</h2>
+      <div className="mt-5 grid grid-cols-2 gap-3 sm:grid-cols-3">
+        {items.map((item) => {
+          const Icon = item.icon;
+          return (
+            <div key={item.label} className="rounded-[1.25rem] bg-[#ECFDF5] p-4">
+              <Icon className="h-5 w-5 text-[#0F766E]" aria-hidden="true" />
+              <p className="mt-3 text-xs font-black uppercase tracking-wide text-slate-500">{item.label}</p>
+              <p className="mt-1 text-xl font-black text-[#0F172A]">{item.value}</p>
+            </div>
+          );
+        })}
+      </div>
+    </motion.section>
+  );
+}
+
+function CoachCard({
+  icon: Icon,
+  eyebrow,
+  title,
+  children,
+}: {
+  icon: ElementType;
+  eyebrow: string;
+  title: string;
+  children: ReactNode;
+}) {
+  return (
+    <motion.section variants={variants} className="muna-card rounded-[2rem] p-5">
+      <div className="flex items-start gap-3">
+        <span className="grid h-11 w-11 shrink-0 place-items-center rounded-2xl bg-[#D1FAE5] text-[#0F766E]">
+          <Icon className="h-5 w-5" aria-hidden="true" />
+        </span>
+        <div>
+          <p className="text-xs font-black uppercase tracking-[0.18em] text-[#0F766E]">{eyebrow}</p>
+          <h2 className="mt-1 text-xl font-black leading-7 text-[#0F172A]">{title}</h2>
+        </div>
+      </div>
+      <div className="mt-4">{children}</div>
+    </motion.section>
   );
 }
 
@@ -387,7 +765,27 @@ function BrainGutBalance({ value }: { value: number }) {
   );
 }
 
-function AiInsightCard({ stats }: { stats: DashboardStats }) {
+function DailyCoachCard({ stats }: { stats: DashboardStats }) {
+  const hasEnoughData = Boolean(stats.sleepHours || stats.waterLiters || stats.stress || stats.bristolType);
+  const smallestStep =
+    stats.waterLiters < 1.8
+      ? "Before dinner, drink one additional glass of water."
+      : stats.stress >= 6
+        ? "Complete one Brain-Gut Reset session."
+        : stats.sleepHours < 7
+          ? "Choose a calmer wind-down before bed tonight."
+          : "Take a 5-minute walk after dinner.";
+  const encouragements = [
+    "Small improvements repeated consistently create meaningful change.",
+    "Every day you learn a little more about your body.",
+    "Progress is built through understanding, not perfection.",
+  ];
+  const encouragement = encouragements[new Date().getDay() % encouragements.length];
+  const summary =
+    stats.sleepHours >= 7 && stats.waterLiters >= 1.8 && stats.stress <= 4
+      ? "Today your routine looks stable. You slept well, stayed hydrated, and reported lower stress. These are encouraging signs."
+      : "Today MUNA sees a few signals worth watching. This is not a diagnosis, but it can help you choose one small supportive step.";
+
   return (
     <motion.section variants={variants} className="muna-card rounded-[2rem] p-6">
       <div className="flex items-center gap-3">
@@ -395,28 +793,54 @@ function AiInsightCard({ stats }: { stats: DashboardStats }) {
           <Sparkles className="h-5 w-5" aria-hidden="true" />
         </span>
         <div>
-          <p className="text-sm font-black uppercase tracking-wide text-[#0F766E]">AI Insight of the Day</p>
-          <h2 className="text-2xl font-black text-[#0F172A]">Your nervous system looks calmer today</h2>
+          <p className="text-sm font-black uppercase tracking-wide text-[#0F766E]">Daily Coach</p>
+          <h2 className="text-2xl font-black text-[#0F172A]">A gentle read on today</h2>
         </div>
       </div>
-      <p className="mt-5 text-base font-semibold leading-7 text-slate-600">
-        MUNA sees low stress, {stats.sleepHours.toFixed(1)} hours of sleep, and Bristol type {stats.bristolType}.
-        These are usually supportive signals for a lower symptom day. Keep dinner simple and avoid late caffeine.
-      </p>
-      <Link
-        href="/ai-chat"
-        className="mt-5 inline-flex rounded-2xl bg-[#0F766E] px-5 py-3 text-sm font-black text-white shadow-[0_14px_34px_rgba(15,118,110,0.22)]"
-      >
-        Ask MUNA to explain
-      </Link>
-      <Link
-        href="/vision"
-        className="mt-3 flex w-full items-center justify-between rounded-full bg-gradient-to-r from-[#0F766E] via-[#10B981] to-[#0F766E] px-5 py-4 text-base font-black text-white shadow-[0_18px_44px_rgba(15,118,110,0.24)] transition duration-300 hover:-translate-y-0.5 hover:shadow-[0_24px_60px_rgba(15,118,110,0.30)]"
-      >
-        <span>🚀 Vision</span>
-        <ArrowRight className="h-5 w-5" aria-hidden="true" />
-      </Link>
+
+      {!hasEnoughData ? (
+        <div className="mt-5 rounded-[1.5rem] bg-[#ECFDF5] p-5 text-base font-semibold leading-7 text-slate-600">
+          <p>Keep logging your meals, symptoms and habits.</p>
+          <p className="mt-3">As more information becomes available, MUNA will begin identifying patterns.</p>
+        </div>
+      ) : (
+        <div className="mt-5 grid gap-4">
+          <CoachSection title="Today's Summary">
+            <p>{summary}</p>
+          </CoachSection>
+
+          <CoachSection title="Why MUNA thinks this">
+            <p>This summary is based on:</p>
+            <ul className="mt-3 grid gap-2">
+              <li>Sleep: {stats.sleepHours.toFixed(1)} hours</li>
+              <li>Water: {stats.waterLiters.toFixed(1)} L</li>
+              <li>Stress: {stats.stress}/10</li>
+              <li>Bristol Type {stats.bristolType}</li>
+            </ul>
+          </CoachSection>
+
+          <CoachSection title="Today's Smallest Step">
+            <p>{smallestStep}</p>
+            <p className="mt-3 text-sm text-slate-500">
+              MUNA suggests this because it is small, practical, and connected to today&apos;s logged signals.
+            </p>
+          </CoachSection>
+
+          <CoachSection title="Encouragement">
+            <p>{encouragement}</p>
+          </CoachSection>
+        </div>
+      )}
     </motion.section>
+  );
+}
+
+function CoachSection({ title, children }: { title: string; children: ReactNode }) {
+  return (
+    <section className="rounded-[1.5rem] bg-[#ECFDF5] p-4">
+      <h3 className="text-sm font-black uppercase tracking-wide text-[#0F766E]">{title}</h3>
+      <div className="mt-2 text-sm font-semibold leading-6 text-slate-700">{children}</div>
+    </section>
   );
 }
 
@@ -448,15 +872,39 @@ function ActionPlanCard({ items }: { items: string[] }) {
   );
 }
 
-function WeeklyTrends() {
+function WeeklyProgressSection({ isOpen, onToggle }: { isOpen: boolean; onToggle: () => void }) {
   return (
     <motion.section variants={variants} className="muna-card rounded-[2rem] p-5 md:p-6">
+      <button
+        type="button"
+        onClick={onToggle}
+        className="flex w-full items-center justify-between gap-4 text-left"
+        aria-expanded={isOpen}
+      >
+        <div>
+          <p className="text-sm font-black uppercase tracking-wide text-[#0F766E]">Weekly Progress</p>
+          <h2 className="mt-2 text-2xl font-black text-[#0F172A]">View Weekly Progress</h2>
+          <p className="mt-2 text-sm font-semibold text-slate-600">
+            Open your gut score, stress, sleep, water, and Bristol trends when you want more detail.
+          </p>
+        </div>
+        <span className="grid h-11 w-11 shrink-0 place-items-center rounded-full bg-[#ECFDF5] text-[#0F766E]">
+          <ArrowRight className={`h-5 w-5 transition ${isOpen ? "rotate-90" : ""}`} aria-hidden="true" />
+        </span>
+      </button>
+      {isOpen ? <WeeklyTrends /> : null}
+    </motion.section>
+  );
+}
+
+function WeeklyTrends() {
+  return (
+    <div className="mt-6">
       <div className="flex flex-col gap-2 sm:flex-row sm:items-end sm:justify-between">
         <div>
           <p className="text-sm font-black uppercase tracking-wide text-[#0F766E]">Weekly Trends</p>
           <h2 className="text-2xl font-black text-[#0F172A]">Gut score, stress, sleep, water and Bristol</h2>
         </div>
-        <p className="text-sm font-bold text-slate-500">7-day investor demo view</p>
       </div>
       <div className="mt-6 grid gap-4 xl:grid-cols-[1.1fr_0.9fr]">
         <div className="h-72 rounded-[1.5rem] bg-[#ECFDF5] p-4">
@@ -484,7 +932,7 @@ function WeeklyTrends() {
           </ResponsiveContainer>
         </div>
       </div>
-    </motion.section>
+    </div>
   );
 }
 
@@ -516,7 +964,9 @@ function CommunityInsights({ items }: { items: string[] }) {
   return (
     <motion.section variants={variants} className="muna-dark-panel rounded-[2rem] p-6">
       <p className="text-sm font-black uppercase tracking-wide text-[#10B981]">Community Insights</p>
-      <h2 className="mt-2 text-3xl font-black text-white">Built with a ready IBS community</h2>
+      <h2 className="mt-2 text-3xl font-black text-white">
+        You&apos;re not alone. Thousands of people are learning about their gut health together.
+      </h2>
       <div className="mt-5 grid gap-3">
         {items.map((item) => (
           <p key={item} className="rounded-2xl bg-white/10 p-4 text-sm font-semibold leading-6 text-emerald-50">

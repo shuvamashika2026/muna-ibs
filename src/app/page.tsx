@@ -92,6 +92,12 @@ export default function LandingPage() {
 
       <section className="mx-auto max-w-6xl px-4 pb-10">
         <DisclaimerNotice />
+        <nav className="mt-5 flex flex-wrap gap-4 text-sm font-bold text-[#0F766E]" aria-label="Legal and support links">
+          <Link href="/privacy">Privacy Policy</Link>
+          <Link href="/terms">Terms of Use</Link>
+          <Link href="/about">About MUNA</Link>
+          <Link href="/contact">Contact</Link>
+        </nav>
       </section>
     </main>
   );

@@ -134,10 +134,15 @@ export default function AiChatPage() {
   const [error, setError] = useState("");
   const [voiceSupported, setVoiceSupported] = useState<boolean | null>(null);
   const [voiceLanguage, setVoiceLanguage] = useState("en-US");
+  const [hasAcceptedMedicalDisclaimer, setHasAcceptedMedicalDisclaimer] = useState(false);
   const scrollerRef = useRef<HTMLDivElement | null>(null);
   const recognitionRef = useRef<SpeechRecognitionInstance | null>(null);
 
   const hasHealthData = true;
+
+  useEffect(() => {
+    setHasAcceptedMedicalDisclaimer(localStorage.getItem("munaMedicalDisclaimerAccepted") === "true");
+  }, []);
 
   useEffect(() => {
     scrollerRef.current?.scrollTo({
@@ -154,6 +159,11 @@ export default function AiChatPage() {
     sendMessage(dashboardPrompt, true);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
+
+  function acceptMedicalDisclaimer() {
+    localStorage.setItem("munaMedicalDisclaimerAccepted", "true");
+    setHasAcceptedMedicalDisclaimer(true);
+  }
 
   const apiHistory = useMemo(
     () =>
@@ -309,6 +319,59 @@ export default function AiChatPage() {
     }
 
     sendMessage(transcript, speakAnswer);
+  }
+
+  if (!hasAcceptedMedicalDisclaimer) {
+    return (
+      <AppShell title="MUNA AI" hidePageHeader showDefaultBottomNav={false}>
+        <div className="mx-auto grid min-h-[calc(100vh-7rem)] max-w-3xl place-items-center px-2 pb-20">
+          <motion.section
+            initial={{ opacity: 0, y: 18 }}
+            animate={{ opacity: 1, y: 0 }}
+            className="muna-card w-full overflow-hidden rounded-[2rem] p-6 md:p-8"
+          >
+            <Link
+              href="/dashboard"
+              className="inline-grid h-11 w-11 place-items-center rounded-2xl border border-emerald-100 bg-white text-[#0F766E] shadow-sm"
+              aria-label="Back to dashboard"
+            >
+              <ArrowLeft className="h-5 w-5" aria-hidden="true" />
+            </Link>
+            <div className="mt-6 grid gap-5 md:grid-cols-[1fr_auto] md:items-start">
+              <div>
+                <span className="inline-grid h-14 w-14 place-items-center rounded-3xl bg-[#0F766E] text-white shadow-[0_18px_36px_rgba(15,118,110,0.22)]">
+                  <ShieldCheck className="h-7 w-7" aria-hidden="true" />
+                </span>
+                <p className="mt-5 text-sm font-black uppercase tracking-wide text-[#0F766E]">
+                  Medical Disclaimer
+                </p>
+                <h1 className="mt-2 text-4xl font-black tracking-normal text-[#0F172A]">
+                  Before You Use MUNA AI
+                </h1>
+                <div className="mt-5 space-y-3 text-lg font-semibold leading-8 text-slate-700">
+                  <p>MUNA provides educational information and wellness coaching.</p>
+                  <p>It does not diagnose, treat or cure medical conditions.</p>
+                  <p>
+                    Always consult a qualified healthcare professional regarding medical concerns.
+                  </p>
+                </div>
+              </div>
+              <div className="hidden rounded-[2rem] bg-[#ECFDF5] p-5 text-[#0F766E] md:block">
+                <Bot className="h-20 w-20" aria-hidden="true" />
+              </div>
+            </div>
+            <button
+              type="button"
+              onClick={acceptMedicalDisclaimer}
+              className="mt-8 inline-flex min-h-14 w-full items-center justify-center gap-2 rounded-2xl bg-gradient-to-r from-[#0F766E] to-[#10B981] px-6 py-4 text-base font-black text-white shadow-[0_18px_38px_rgba(15,118,110,0.25)] transition hover:-translate-y-0.5 hover:shadow-[0_24px_48px_rgba(15,118,110,0.3)]"
+            >
+              I understand
+              <Check className="h-5 w-5" aria-hidden="true" />
+            </button>
+          </motion.section>
+        </div>
+      </AppShell>
+    );
   }
 
   return (

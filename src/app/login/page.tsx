@@ -13,11 +13,18 @@ export default function LoginPage() {
   const [password, setPassword] = useState("");
   const [message, setMessage] = useState("");
   const [isLoading, setIsLoading] = useState(false);
+  const [healthDataConsent, setHealthDataConsent] = useState(false);
 
   async function handleSubmit(event: React.FormEvent<HTMLFormElement>) {
     event.preventDefault();
     setIsLoading(true);
     setMessage("");
+
+    if (mode === "sign-up" && !healthDataConsent) {
+      setMessage("Please confirm health data consent before creating your account.");
+      setIsLoading(false);
+      return;
+    }
 
     if (!isSupabaseConfigured || !supabase) {
       setMessage("Supabase is not connected yet. Add the public URL and anon key to .env.local.");
@@ -94,12 +101,36 @@ export default function LoginPage() {
                 required
               />
             </label>
-            <button className={primaryButtonClass} type="submit" disabled={isLoading}>
+            {mode === "sign-up" ? (
+              <label className="flex items-start gap-3 rounded-2xl border border-emerald-100 bg-[#ECFDF5] p-4 text-sm font-semibold leading-6 text-slate-700">
+                <input
+                  type="checkbox"
+                  checked={healthDataConsent}
+                  onChange={(event) => setHealthDataConsent(event.target.checked)}
+                  className="mt-1 h-5 w-5 rounded border-emerald-300 text-[#0F766E] accent-[#0F766E]"
+                  required
+                />
+                <span>
+                  I understand that MUNA stores my health information to personalise my experience.
+                </span>
+              </label>
+            ) : null}
+            <button
+              className={primaryButtonClass}
+              type="submit"
+              disabled={isLoading || (mode === "sign-up" && !healthDataConsent)}
+            >
               {isLoading ? "Please wait..." : mode === "sign-up" ? "Create account" : "Login"}
             </button>
             {message ? <p className="text-sm font-medium text-slate-600">{message}</p> : null}
           </form>
         </FormCard>
+        <nav className="flex flex-wrap justify-center gap-4 text-sm font-bold text-[#0F766E]" aria-label="Legal and support links">
+          <Link href="/privacy">Privacy Policy</Link>
+          <Link href="/terms">Terms of Use</Link>
+          <Link href="/about">About MUNA</Link>
+          <Link href="/contact">Contact</Link>
+        </nav>
       </div>
     </main>
   );

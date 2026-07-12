@@ -1,6 +1,7 @@
 import { AppShell } from "@/components/app-shell";
 import { DisclaimerNotice } from "@/components/disclaimer-notice";
 import { FormCard, inputClass, labelClass } from "@/components/form-card";
+import Link from "next/link";
 
 export default function SettingsPage() {
   return (
@@ -30,6 +31,23 @@ export default function SettingsPage() {
                 <option>Saturday</option>
               </select>
             </label>
+          </div>
+        </FormCard>
+        <FormCard>
+          <h2 className="text-xl font-black text-[#0F172A]">Legal and support</h2>
+          <div className="mt-4 grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
+            <Link className="rounded-2xl bg-[#ECFDF5] px-4 py-3 text-center font-black text-[#0F766E]" href="/privacy">
+              Privacy Policy
+            </Link>
+            <Link className="rounded-2xl bg-[#ECFDF5] px-4 py-3 text-center font-black text-[#0F766E]" href="/terms">
+              Terms of Use
+            </Link>
+            <Link className="rounded-2xl bg-[#ECFDF5] px-4 py-3 text-center font-black text-[#0F766E]" href="/about">
+              About MUNA
+            </Link>
+            <Link className="rounded-2xl bg-[#ECFDF5] px-4 py-3 text-center font-black text-[#0F766E]" href="/contact">
+              Contact
+            </Link>
           </div>
         </FormCard>
       </div>
