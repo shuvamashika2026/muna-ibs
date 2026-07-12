@@ -38,10 +38,15 @@ import { calculateRisk } from "@/lib/risk";
 import { supabase } from "@/lib/supabase";
 import { AppShell } from "@/components/app-shell";
 import { FoodIntelligenceCard } from "@/components/dashboard/FoodIntelligenceCard";
+import { DailyBriefCard } from "@/components/dashboard/DailyBriefCard";
+import { ExperimentModeCard } from "@/components/experiment/experiment-mode-card";
 import {
   buildDashboardFoodInsight,
   type DashboardFoodInsight,
 } from "@/lib/food-intelligence";
+import type { DailyBrief } from "@/lib/daily-brief";
+import type { Experiment } from "@/lib/experiment-engine";
+import type { ExperimentProgress } from "@/lib/experiment-progress";
 
 type DashboardStats = {
   userName: string;
@@ -124,12 +129,21 @@ export default function DashboardPage() {
   const [isWeeklyProgressOpen, setIsWeeklyProgressOpen] = useState(false);
   const [foodInsight, setFoodInsight] = useState<DashboardFoodInsight | null>(null);
   const [isFoodInsightLoading, setIsFoodInsightLoading] = useState(true);
+  const [dailyBrief, setDailyBrief] = useState<DailyBrief | null>(null);
+  const [isDailyBriefLoading, setIsDailyBriefLoading] = useState(true);
+  const [dailyBriefError, setDailyBriefError] = useState<string | null>(null);
+  const [experimentSummary, setExperimentSummary] = useState<Experiment | null>(null);
+  const [experimentProgress, setExperimentProgress] = useState<ExperimentProgress | null>(null);
+  const [isExperimentLoading, setIsExperimentLoading] = useState(true);
+  const [experimentError, setExperimentError] = useState<string | null>(null);
   const recognitionRef = useRef<SpeechRecognitionInstance | null>(null);
 
   useEffect(() => {
     async function loadDashboard() {
       if (!supabase) {
         setIsFoodInsightLoading(false);
+        setIsDailyBriefLoading(false);
+        setIsExperimentLoading(false);
         return;
       }
 
@@ -138,6 +152,8 @@ export default function DashboardPage() {
 
       if (!user) {
         setIsFoodInsightLoading(false);
+        setIsDailyBriefLoading(false);
+        setIsExperimentLoading(false);
         window.location.href = "/login";
         return;
       }
@@ -193,6 +209,61 @@ export default function DashboardPage() {
 
       setFoodInsight(buildDashboardFoodInsight(meals ?? [], symptoms ?? []));
       setIsFoodInsightLoading(false);
+
+      const { data: sessionData } = await supabase.auth.getSession();
+      const accessToken = sessionData.session?.access_token;
+
+      if (accessToken) {
+        try {
+          const briefResponse = await fetch("/api/daily-brief", {
+            headers: {
+              Authorization: `Bearer ${accessToken}`,
+            },
+          });
+
+          if (briefResponse.ok) {
+            const payload = (await briefResponse.json()) as { brief?: DailyBrief };
+            setDailyBrief(payload.brief ?? null);
+            setDailyBriefError(null);
+          } else {
+            setDailyBriefError("Daily brief is unavailable right now.");
+          }
+        } catch {
+          setDailyBriefError("Daily brief is unavailable right now.");
+        }
+      } else {
+        setDailyBriefError("Sign in to receive your daily brief.");
+      }
+
+      setIsDailyBriefLoading(false);
+
+      if (accessToken) {
+        try {
+          const experimentResponse = await fetch("/api/experiments", {
+            headers: {
+              Authorization: `Bearer ${accessToken}`,
+            },
+          });
+
+          if (experimentResponse.ok) {
+            const experimentPayload = (await experimentResponse.json()) as {
+              experiment?: Experiment | null;
+              progress?: ExperimentProgress | null;
+            };
+            setExperimentSummary(experimentPayload.experiment ?? null);
+            setExperimentProgress(experimentPayload.progress ?? null);
+            setExperimentError(null);
+          } else {
+            setExperimentError("Experiment status is unavailable right now.");
+          }
+        } catch {
+          setExperimentError("Experiment status is unavailable right now.");
+        }
+      } else {
+        setExperimentError("Sign in to use Experiment Mode.");
+      }
+
+      setIsExperimentLoading(false);
 
       const pain = Number(latestSymptom?.severity ?? 2);
       const bloating = Number(latestSymptom?.severity ?? 3);
@@ -342,6 +413,17 @@ export default function DashboardPage() {
         variants={{ visible: { transition: { staggerChildren: 0.07 } } }}
       >
         <CoachingHero stats={stats} />
+        <motion.div variants={variants}>
+          <DailyBriefCard brief={dailyBrief} isLoading={isDailyBriefLoading} error={dailyBriefError} />
+        </motion.div>
+        <motion.div variants={variants}>
+          <ExperimentModeCard
+            experiment={experimentSummary}
+            progress={experimentProgress}
+            isLoading={isExperimentLoading}
+            error={experimentError}
+          />
+        </motion.div>
         <TodaysCheckInCard mood={todayMood} onSelectMood={setTodayMood} />
 
         <section className="grid gap-4 xl:grid-cols-[1.45fr_0.55fr]">
