@@ -37,6 +37,11 @@ import {
 import { calculateRisk } from "@/lib/risk";
 import { supabase } from "@/lib/supabase";
 import { AppShell } from "@/components/app-shell";
+import { FoodIntelligenceCard } from "@/components/dashboard/FoodIntelligenceCard";
+import {
+  buildDashboardFoodInsight,
+  type DashboardFoodInsight,
+} from "@/lib/food-intelligence";
 
 type DashboardStats = {
   userName: string;
@@ -117,16 +122,22 @@ export default function DashboardPage() {
   const [completedJourneySteps, setCompletedJourneySteps] = useState<string[]>([]);
   const [todayMood, setTodayMood] = useState<"Better" | "About the same" | "Worse" | null>(null);
   const [isWeeklyProgressOpen, setIsWeeklyProgressOpen] = useState(false);
+  const [foodInsight, setFoodInsight] = useState<DashboardFoodInsight | null>(null);
+  const [isFoodInsightLoading, setIsFoodInsightLoading] = useState(true);
   const recognitionRef = useRef<SpeechRecognitionInstance | null>(null);
 
   useEffect(() => {
     async function loadDashboard() {
-      if (!supabase) return;
+      if (!supabase) {
+        setIsFoodInsightLoading(false);
+        return;
+      }
 
       const { data: userData } = await supabase.auth.getUser();
       const user = userData.user;
 
       if (!user) {
+        setIsFoodInsightLoading(false);
         window.location.href = "/login";
         return;
       }
@@ -165,6 +176,23 @@ export default function DashboardPage() {
         .order("created_at", { ascending: false })
         .limit(1)
         .maybeSingle();
+
+      const { data: meals } = await supabase
+        .from("meals")
+        .select("foods, notes, meal_type, eaten_at, created_at")
+        .eq("user_id", user.id)
+        .order("eaten_at", { ascending: false })
+        .limit(20);
+
+      const { data: symptoms } = await supabase
+        .from("symptoms")
+        .select("symptoms, severity, stress_level, logged_at, created_at")
+        .eq("user_id", user.id)
+        .order("logged_at", { ascending: false })
+        .limit(20);
+
+      setFoodInsight(buildDashboardFoodInsight(meals ?? [], symptoms ?? []));
+      setIsFoodInsightLoading(false);
 
       const pain = Number(latestSymptom?.severity ?? 2);
       const bloating = Number(latestSymptom?.severity ?? 3);
@@ -333,6 +361,22 @@ export default function DashboardPage() {
             <p className="text-sm font-black uppercase tracking-[0.2em] text-[#0F766E]">Trackers and insights</p>
             <h2 className="mt-2 text-3xl font-black tracking-normal text-[#0F172A]">Your existing MUNA trackers</h2>
           </div>
+          <motion.div variants={variants} className="mb-4">
+            <FoodIntelligenceCard
+              insight={
+                foodInsight ?? {
+                  hasPattern: false,
+                  observation:
+                    "Keep logging meals and symptoms. MUNA needs repeated observations before it can identify a meaningful personal pattern.",
+                  limitation: "",
+                  experiment: "",
+                  linkHref: "/add-meal",
+                  linkLabel: "Log a meal",
+                }
+              }
+              isLoading={isFoodInsightLoading}
+            />
+          </motion.div>
           <div className="grid gap-4 xl:grid-cols-[1fr_0.85fr_0.85fr]">
             <GutScoreCard score={stats.gutScore} />
             <FlareRiskGauge risk={stats.flareRisk} confidence={stats.confidence} />

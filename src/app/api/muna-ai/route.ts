@@ -1,6 +1,11 @@
 import OpenAI from "openai";
 import { NextResponse } from "next/server";
 import { createClient, type SupabaseClient } from "@supabase/supabase-js";
+import {
+  classifyFoodItem,
+  formatFodmapLevelLabel,
+  splitMealText,
+} from "@/lib/food-intelligence";
 
 const redFlagPattern =
   /\b(blood in stool|bloody stool|black stool|severe pain|fever|dehydration|fainting|passed out|unexplained weight loss|weight loss)\b/i;
@@ -46,7 +51,7 @@ When personal data is limited, use wording similar to:
 
 Data use:
 - Use only the user's own tracked trends when they exist in the health context.
-- A personal memory profile may also be provided. Treat its "Observations" as logged facts, "Associations" as unconfirmed patterns, "User-marked" as self-reported, and "Unavailable" as missing — never upgrade these into diagnoses or certainties.
+- A personal memory profile may also be provided. Treat "General FODMAP classification" as educational reference data, "Personal observed association" as log-based patterns with counts (never confirmed triggers), "User-marked" as self-reported, and "Unavailable" as missing — never upgrade these into diagnoses or certainties.
 - When data confidence is Low, lean on general education and encourage logging.
 - Data confidence labels (Low, Moderate, Higher) reflect logging volume only — never describe them as clinical certainty.
 - Do not compute or state gut scores, flare predictions, or confidence percentages unless they appear in the health context.
@@ -85,7 +90,9 @@ type PersonalMemoryProfile = {
   version: number;
   generatedAt: string;
   hasPersonalPatterns: boolean;
+  generalFodmapFoods: MemoryEntry[];
   likelyTriggerFoods: MemoryEntry[];
+  userMarkedTriggerFoods: MemoryEntry[];
   toleratedFoods: MemoryEntry[];
   averageSleep: MemoryEntry;
   hydrationHabits: MemoryEntry;
@@ -104,8 +111,10 @@ type StoredUserMemory = {
   version: number;
 };
 
-const MEMORY_ENGINE_VERSION = 1;
+const MEMORY_ENGINE_VERSION = 2;
 const MEMORY_TTL_MS = 24 * 60 * 60 * 1000;
+const TIMING_PRECISION_NOTE =
+  "Timing precision is limited: same-day links require logged meal and symptom timestamps; otherwise only next-day date matching is used.";
 
 type ConfidenceLabel = "Low" | "Moderate" | "Higher";
 
@@ -295,13 +304,6 @@ function buildHealthSummary(data: HealthData): HealthSummary {
     observedPositiveHabits.push(`Bristol type ${Math.round(bristol)} logged`);
   }
 
-  const latestMealText = data.meals
-    .slice(0, 5)
-    .map((meal) => textFrom(meal, ["foods", "food_name", "meal_type", "notes", "meal_name"]))
-    .filter((value): value is string => Boolean(value))
-    .join(" ")
-    .toLowerCase();
-
   const possibleAssociations: string[] = [];
   if (stress !== null && stress >= 6) {
     possibleAssociations.push(`Elevated stress (${stress}) appears in recent symptom logs`);
@@ -311,15 +313,6 @@ function buildHealthSummary(data: HealthData): HealthSummary {
   }
   if (waterLiters !== null && waterLiters < 1.8) {
     possibleAssociations.push(`Water intake ${waterLiters.toFixed(1)} L logged recently`);
-  }
-  if (latestMealText.includes("coffee")) {
-    possibleAssociations.push("Coffee appears in recent meal logs");
-  }
-  if (latestMealText.includes("dairy") || latestMealText.includes("milk")) {
-    possibleAssociations.push("Dairy appears in recent meal logs");
-  }
-  if (latestMealText.includes("garlic") || latestMealText.includes("onion")) {
-    possibleAssociations.push("Onion or garlic appears in recent meal logs");
   }
 
   const knownTriggers = data.triggerFoods
@@ -417,20 +410,6 @@ function buildHealthContext(data: HealthData): string {
   return lines.join("\n");
 }
 
-const TRIGGER_KEYWORDS = [
-  "coffee",
-  "milk",
-  "dairy",
-  "onion",
-  "garlic",
-  "wheat",
-  "gluten",
-  "fried",
-  "spicy",
-  "beans",
-  "lentils",
-] as const;
-
 const MEAL_FLAG_KEYS = [
   "has_dairy",
   "has_onion",
@@ -439,23 +418,15 @@ const MEAL_FLAG_KEYS = [
   "has_gluten",
 ] as const;
 
+type FoodExposureStats = {
+  totalMeals: number;
+  linkedMeals: number;
+  symptomNotes: string[];
+};
+
 function averageNumbers(values: number[]): number | null {
   if (!values.length) return null;
   return values.reduce((sum, value) => sum + value, 0) / values.length;
-}
-
-function mealSearchText(row: Record<string, unknown>): string {
-  const parts = [
-    textFrom(row, ["foods", "food_name", "meal_name", "notes", "ingredients", "drinks"]),
-  ].filter((value): value is string => Boolean(value));
-
-  for (const key of MEAL_FLAG_KEYS) {
-    if (row[key] === true) {
-      parts.push(key.replace("has_", ""));
-    }
-  }
-
-  return parts.join(" ").toLowerCase();
 }
 
 function symptomSeverity(row: Record<string, unknown>): number | null {
@@ -467,80 +438,251 @@ function symptomSeverity(row: Record<string, unknown>): number | null {
   return Math.max(...values);
 }
 
-function getSymptomHeavyDates(symptoms: Record<string, unknown>[]): Set<string> {
-  const dates = new Set<string>();
-
-  for (const row of symptoms) {
-    const severity = symptomSeverity(row);
-    if (severity === null || severity < 4) continue;
-
-    const date = getDateFromRow(row);
-    if (date) dates.add(date);
-  }
-
-  return dates;
-}
-
-function collectFoodTokens(text: string): string[] {
-  const tokens = new Set<string>();
-
-  for (const keyword of TRIGGER_KEYWORDS) {
-    if (text.includes(keyword)) tokens.add(keyword);
-  }
-
-  return Array.from(tokens);
-}
-
-function buildLikelyTriggerFoodEntries(
-  meals: Record<string, unknown>[],
-  symptoms: Record<string, unknown>[],
-  triggerFoods: Record<string, unknown>[]
-): MemoryEntry[] {
-  const entries: MemoryEntry[] = [];
-  const symptomHeavyDates = getSymptomHeavyDates(symptoms);
-  const associationCounts = new Map<string, number>();
-
-  if (symptomHeavyDates.size >= 2) {
-    for (const meal of meals) {
-      const mealDate = getDateFromRow(meal);
-      if (!mealDate || !symptomHeavyDates.has(mealDate)) continue;
-
-      for (const token of collectFoodTokens(mealSearchText(meal))) {
-        associationCounts.set(token, (associationCounts.get(token) ?? 0) + 1);
-      }
+function getTimestampMsFromRow(row: Record<string, unknown>, keys: string[]): number | null {
+  for (const key of keys) {
+    const value = row[key];
+    if (typeof value === "string") {
+      const parsed = Date.parse(value);
+      if (Number.isFinite(parsed)) return parsed;
     }
   }
 
-  const repeatedAssociations = Array.from(associationCounts.entries())
-    .filter(([, count]) => count >= 2)
-    .sort((a, b) => b[1] - a[1])
+  return null;
+}
+
+function addDaysToDate(date: string, days: number): string | null {
+  const parsed = Date.parse(`${date}T00:00:00Z`);
+  if (!Number.isFinite(parsed)) return null;
+
+  const next = new Date(parsed);
+  next.setUTCDate(next.getUTCDate() + days);
+  return next.toISOString().slice(0, 10);
+}
+
+function capitalizeFoodName(name: string): string {
+  return name.charAt(0).toUpperCase() + name.slice(1);
+}
+
+function mealFoodText(row: Record<string, unknown>): string | null {
+  const parts = [
+    textFrom(row, ["foods", "food_name", "meal_name", "notes", "ingredients", "drinks"]),
+  ].filter((value): value is string => Boolean(value));
+
+  for (const key of MEAL_FLAG_KEYS) {
+    if (row[key] === true) {
+      parts.push(key.replace("has_", ""));
+    }
+  }
+
+  const combined = parts.join(", ").trim();
+  return combined || null;
+}
+
+function extractCanonicalFoodsFromMeal(row: Record<string, unknown>): string[] {
+  const text = mealFoodText(row);
+  if (!text) return [];
+
+  const foods = new Set<string>();
+  for (const item of splitMealText(text)) {
+    const classified = classifyFoodItem(item);
+    if (classified.matched && classified.canonicalName) {
+      foods.add(classified.canonicalName);
+    }
+  }
+
+  return Array.from(foods);
+}
+
+function getSymptomHeavyDays(symptoms: Record<string, unknown>[]): Map<string, string> {
+  const heavyDays = new Map<string, string>();
+
+  for (const row of symptoms) {
+    const date = getDateFromRow(row);
+    if (!date) continue;
+
+    const pain = numberFrom(row, ["pain_level", "severity", "pain"]);
+    const bloating = numberFrom(row, ["bloating_level", "bloating"]);
+    const descriptors: string[] = [];
+
+    if (bloating !== null && bloating >= 4) descriptors.push("higher bloating");
+    if (pain !== null && pain >= 4) descriptors.push("elevated pain");
+
+    const severity = symptomSeverity(row);
+    if (!descriptors.length && severity !== null && severity >= 4) {
+      descriptors.push("elevated symptoms");
+    }
+
+    if (descriptors.length) {
+      heavyDays.set(date, descriptors.join(" and "));
+    }
+  }
+
+  return heavyDays;
+}
+
+function foodAssociationConfidenceLabel(
+  totalExposures: number,
+  linkedMeals: number
+): ConfidenceLabel | null {
+  if (totalExposures < 3 || linkedMeals < 2) return null;
+  if (totalExposures >= 7 && linkedMeals >= 2) return "Higher";
+  if (totalExposures >= 3 && totalExposures <= 6 && linkedMeals >= 2) return "Moderate";
+  return "Moderate";
+}
+
+function symptomHeavyOnDayAfterMeal(
+  meal: Record<string, unknown>,
+  mealDate: string,
+  symptomHeavyDays: Map<string, string>,
+  symptoms: Record<string, unknown>[]
+): { linked: boolean; symptomNote?: string } {
+  const nextDay = addDaysToDate(mealDate, 1);
+  if (nextDay && symptomHeavyDays.has(nextDay)) {
+    return { linked: true, symptomNote: symptomHeavyDays.get(nextDay) };
+  }
+
+  if (!symptomHeavyDays.has(mealDate)) {
+    return { linked: false };
+  }
+
+  const mealTimestamp = getTimestampMsFromRow(meal, ["eaten_at", "meal_date", "logged_at", "created_at"]);
+  const sameDaySymptoms = symptoms.filter((row) => getDateFromRow(row) === mealDate);
+
+  for (const symptom of sameDaySymptoms) {
+    const severity = symptomSeverity(symptom);
+    if (severity === null || severity < 4) continue;
+
+    const symptomTimestamp = getTimestampMsFromRow(symptom, ["logged_at", "symptom_date", "created_at"]);
+    if (mealTimestamp !== null && symptomTimestamp !== null && mealTimestamp < symptomTimestamp) {
+      return { linked: true, symptomNote: symptomHeavyDays.get(mealDate) };
+    }
+  }
+
+  return { linked: false };
+}
+
+function dominantSymptomDescription(notes: string[]): string {
+  const counts = new Map<string, number>();
+  for (const note of notes) {
+    counts.set(note, (counts.get(note) ?? 0) + 1);
+  }
+
+  const ranked = Array.from(counts.entries()).sort((a, b) => b[1] - a[1]);
+  return ranked[0]?.[0] ?? "elevated symptoms";
+}
+
+function buildGeneralFodmapClassifications(meals: Record<string, unknown>[]): MemoryEntry[] {
+  const seen = new Set<string>();
+  const entries: MemoryEntry[] = [];
+
+  for (const meal of meals) {
+    const text = mealFoodText(meal);
+    if (!text) continue;
+
+    for (const item of splitMealText(text)) {
+      const classified = classifyFoodItem(item);
+      if (!classified.matched || !classified.canonicalName || seen.has(classified.canonicalName)) {
+        continue;
+      }
+
+      seen.add(classified.canonicalName);
+      entries.push({
+        kind: "observation",
+        label: "General FODMAP classification",
+        value: `${capitalizeFoodName(classified.canonicalName)}: ${formatFodmapLevelLabel(classified.fodmapLevel)} in MUNA reference list (educational, not personal). ${classified.note ?? ""}`.trim(),
+      });
+    }
+  }
+
+  return entries.slice(0, 8);
+}
+
+function buildPersonalObservedAssociations(
+  meals: Record<string, unknown>[],
+  symptoms: Record<string, unknown>[]
+): MemoryEntry[] {
+  const symptomHeavyDays = getSymptomHeavyDays(symptoms);
+  if (symptomHeavyDays.size < 2) {
+    return [
+      {
+        kind: "unavailable",
+        label: "Personal observed associations",
+        value: "insufficient symptom-heavy periods in logs to assess meal associations",
+      },
+    ];
+  }
+
+  const stats = new Map<string, FoodExposureStats>();
+
+  for (const meal of meals) {
+    const mealDate = getDateFromRow(meal);
+    if (!mealDate) continue;
+
+    const foods = extractCanonicalFoodsFromMeal(meal);
+    if (!foods.length) continue;
+
+    const link = symptomHeavyOnDayAfterMeal(meal, mealDate, symptomHeavyDays, symptoms);
+
+    for (const food of foods) {
+      const current = stats.get(food) ?? { totalMeals: 0, linkedMeals: 0, symptomNotes: [] };
+      current.totalMeals += 1;
+      if (link.linked && link.symptomNote) {
+        current.linkedMeals += 1;
+        current.symptomNotes.push(link.symptomNote);
+      }
+      stats.set(food, current);
+    }
+  }
+
+  const associations = Array.from(stats.entries())
+    .map(([food, value]) => ({
+      food,
+      ...value,
+      confidence: foodAssociationConfidenceLabel(value.totalMeals, value.linkedMeals),
+    }))
+    .filter((item) => item.confidence !== null)
+    .sort((a, b) => b.linkedMeals - a.linkedMeals || b.totalMeals - a.totalMeals)
     .slice(0, 5);
 
-  for (const [food, count] of repeatedAssociations) {
-    entries.push({
-      kind: "association",
-      label: "Likely trigger food",
-      value: `${food} appeared in ${count} meal logs on days with elevated symptoms (association only, not confirmed)`,
-    });
+  if (!associations.length) {
+    return [
+      {
+        kind: "unavailable",
+        label: "Personal observed associations",
+        value: "not enough dated meal and symptom records for reliable food associations",
+      },
+    ];
   }
 
-  for (const row of triggerFoods.slice(0, 5)) {
-    const food = textFrom(row, ["food_name", "name"]);
-    if (!food) continue;
+  return associations.map((item) => {
+    const symptomText = dominantSymptomDescription(item.symptomNotes);
+    return {
+      kind: "association" as const,
+      label: "Personal observed association",
+      value: `${capitalizeFoodName(item.food)} appeared in ${item.linkedMeals} of ${item.totalMeals} logged meals followed by ${symptomText}. Association confidence: ${item.confidence} (logging volume only, not medical certainty). ${TIMING_PRECISION_NOTE} This is an association in your records, not proof that ${item.food} caused the symptoms.`,
+    };
+  });
+}
 
-    entries.push({
-      kind: "user_marked",
+function buildUserMarkedTriggerEntries(triggerFoods: Record<string, unknown>[]): MemoryEntry[] {
+  const entries = triggerFoods
+    .slice(0, 5)
+    .map((row) => textFrom(row, ["food_name", "name"]))
+    .filter((value): value is string => Boolean(value))
+    .map((food) => ({
+      kind: "user_marked" as const,
       label: "User-marked trigger food",
-      value: food,
-    });
-  }
+      value: `${food} (self-reported by user, not confirmed by MUNA analysis)`,
+    }));
 
   if (!entries.length) {
-    entries.push({
-      kind: "unavailable",
-      label: "Likely trigger foods",
-      value: "insufficient repeated associations in logs",
-    });
+    return [
+      {
+        kind: "unavailable",
+        label: "User-marked trigger foods",
+        value: "none logged",
+      },
+    ];
   }
 
   return entries;
@@ -550,15 +692,18 @@ function buildToleratedFoodEntries(
   meals: Record<string, unknown>[],
   symptoms: Record<string, unknown>[]
 ): MemoryEntry[] {
-  const symptomHeavyDates = getSymptomHeavyDates(symptoms);
+  const symptomHeavyDates = new Set(getSymptomHeavyDays(symptoms).keys());
   const toleratedCounts = new Map<string, number>();
 
   for (const meal of meals) {
     const mealDate = getDateFromRow(meal);
     if (!mealDate || symptomHeavyDates.has(mealDate)) continue;
 
-    for (const token of collectFoodTokens(mealSearchText(meal))) {
-      toleratedCounts.set(token, (toleratedCounts.get(token) ?? 0) + 1);
+    const nextDay = addDaysToDate(mealDate, 1);
+    if (nextDay && symptomHeavyDates.has(nextDay)) continue;
+
+    for (const food of extractCanonicalFoodsFromMeal(meal)) {
+      toleratedCounts.set(food, (toleratedCounts.get(food) ?? 0) + 1);
     }
   }
 
@@ -580,7 +725,7 @@ function buildToleratedFoodEntries(
   return toleratedFoods.map(([food, count]) => ({
     kind: "observation",
     label: "Commonly tolerated food",
-    value: `${food} logged ${count} times on days without elevated symptoms`,
+    value: `${capitalizeFoodName(food)} logged ${count} times on days without elevated symptoms`,
   }));
 }
 
@@ -783,14 +928,18 @@ function buildUserPreferenceEntries(
 }
 
 function buildPersonalMemoryJson(data: HealthData): PersonalMemoryProfile {
-  const likelyTriggerFoods = buildLikelyTriggerFoodEntries(data.meals, data.symptoms, data.triggerFoods);
+  const generalFodmapFoods = buildGeneralFodmapClassifications(data.meals);
+  const likelyTriggerFoods = buildPersonalObservedAssociations(data.meals, data.symptoms);
+  const userMarkedTriggerFoods = buildUserMarkedTriggerEntries(data.triggerFoods);
   const toleratedFoods = buildToleratedFoodEntries(data.meals, data.symptoms);
 
   const profile: PersonalMemoryProfile = {
     version: MEMORY_ENGINE_VERSION,
     generatedAt: new Date().toISOString(),
     hasPersonalPatterns: false,
+    generalFodmapFoods,
     likelyTriggerFoods,
+    userMarkedTriggerFoods,
     toleratedFoods,
     averageSleep: buildAverageSleepEntry(data.sleep),
     hydrationHabits: buildHydrationHabitsEntry(data.water),
@@ -801,7 +950,9 @@ function buildPersonalMemoryJson(data: HealthData): PersonalMemoryProfile {
   };
 
   profile.hasPersonalPatterns = [
+    ...profile.generalFodmapFoods,
     ...profile.likelyTriggerFoods,
+    ...profile.userMarkedTriggerFoods,
     ...profile.toleratedFoods,
     profile.averageSleep,
     profile.hydrationHabits,
@@ -814,9 +965,21 @@ function buildPersonalMemoryJson(data: HealthData): PersonalMemoryProfile {
   return profile;
 }
 
+function normalizeMemoryProfile(value: PersonalMemoryProfile): PersonalMemoryProfile {
+  return {
+    ...value,
+    generalFodmapFoods: Array.isArray(value.generalFodmapFoods) ? value.generalFodmapFoods : [],
+    userMarkedTriggerFoods: Array.isArray(value.userMarkedTriggerFoods)
+      ? value.userMarkedTriggerFoods
+      : [],
+  };
+}
+
 function collectMemoryEntries(profile: PersonalMemoryProfile): MemoryEntry[] {
   return [
+    ...profile.generalFodmapFoods,
     ...profile.likelyTriggerFoods,
+    ...profile.userMarkedTriggerFoods,
     ...profile.toleratedFoods,
     profile.averageSleep,
     profile.hydrationHabits,
@@ -837,7 +1000,12 @@ function isValidMemoryJson(value: unknown): value is PersonalMemoryProfile {
     typeof record.hasPersonalPatterns === "boolean" &&
     Array.isArray(record.likelyTriggerFoods) &&
     Array.isArray(record.toleratedFoods) &&
-    Array.isArray(record.userPreferences)
+    Array.isArray(record.userPreferences) &&
+    record.averageSleep !== undefined &&
+    record.hydrationHabits !== undefined &&
+    record.stressTrends !== undefined &&
+    record.bowelTrends !== undefined &&
+    record.ibsSubtype !== undefined
   );
 }
 
@@ -861,40 +1029,34 @@ function formatMemoryEntry(entry: MemoryEntry): string {
 }
 
 function buildPersonalMemoryContext(profile: PersonalMemoryProfile): string {
-  const grouped = {
-    observation: [] as string[],
-    association: [] as string[],
-    user_marked: [] as string[],
-    unavailable: [] as string[],
-  };
-
-  for (const entry of collectMemoryEntries(profile)) {
-    grouped[entry.kind].push(formatMemoryEntry(entry));
-  }
-
   const lines = [
     "Personal memory profile (derived from logged Supabase data only):",
-    "Observations are logged facts. Associations are repeated patterns, not confirmed causes. User-marked items are self-reported. Unavailable means not enough data.",
+    "General FODMAP = educational reference. Personal observed association = log-based pattern with counts (never a confirmed trigger). User-marked = self-reported. Unavailable = insufficient data.",
     `Memory version: ${profile.version}`,
     `Generated at: ${profile.generatedAt}`,
     `Personal patterns available: ${profile.hasPersonalPatterns ? "yes" : "no"}`,
   ];
 
-  if (grouped.observation.length) {
-    lines.push("", "Observations:", ...grouped.observation);
-  }
+  const appendSection = (title: string, entries: MemoryEntry[]) => {
+    if (!entries.length) return;
+    lines.push("", `${title}:`);
+    entries.forEach((entry) => lines.push(formatMemoryEntry(entry)));
+  };
 
-  if (grouped.association.length) {
-    lines.push("", "Associations:", ...grouped.association);
-  }
+  appendSection("General FODMAP classifications", profile.generalFodmapFoods);
+  appendSection("Personal observed associations", profile.likelyTriggerFoods);
+  appendSection("User-marked trigger foods", profile.userMarkedTriggerFoods);
+  appendSection("Commonly tolerated foods", profile.toleratedFoods);
 
-  if (grouped.user_marked.length) {
-    lines.push("", "User-marked:", ...grouped.user_marked);
-  }
-
-  if (grouped.unavailable.length) {
-    lines.push("", "Unavailable:", ...grouped.unavailable);
-  }
+  const lifestyleEntries = [
+    profile.averageSleep,
+    profile.hydrationHabits,
+    profile.stressTrends,
+    profile.bowelTrends,
+    profile.ibsSubtype,
+    ...profile.userPreferences,
+  ];
+  appendSection("Lifestyle and preferences", lifestyleEntries);
 
   return lines.join("\n");
 }
@@ -925,7 +1087,7 @@ async function loadUserMemory(
   return {
     row: {
       user_id: data.user_id as string,
-      memory_json: memoryJson,
+      memory_json: normalizeMemoryProfile(memoryJson),
       confidence_level: data.confidence_level as ConfidenceLabel,
       data_days: Number(data.data_days) || 0,
       last_updated: data.last_updated as string,
@@ -984,15 +1146,19 @@ async function resolvePersonalMemory(
 
   const cachedRow = preloaded?.row ?? null;
 
-  if (cachedRow && isMemoryFresh(cachedRow.last_updated)) {
-    return { profile: cachedRow.memory_json, source: "cache", accessNotes };
+  if (
+    cachedRow &&
+    isMemoryFresh(cachedRow.last_updated) &&
+    cachedRow.memory_json.version >= MEMORY_ENGINE_VERSION
+  ) {
+    return { profile: normalizeMemoryProfile(cachedRow.memory_json), source: "cache", accessNotes };
   }
 
   const saved = await saveUserMemory(supabase, healthData.userId, regenerated, healthData);
   if (!saved) {
     accessNotes.push("user_memory: regeneration succeeded but persistence failed; previous memory was not overwritten");
     if (cachedRow) {
-      return { profile: cachedRow.memory_json, source: "cache", accessNotes };
+      return { profile: normalizeMemoryProfile(cachedRow.memory_json), source: "cache", accessNotes };
     }
   }
 

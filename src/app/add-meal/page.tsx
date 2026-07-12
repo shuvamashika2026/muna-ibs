@@ -1,8 +1,9 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { AppShell } from "@/components/app-shell";
 import { FormCard, inputClass, labelClass } from "@/components/form-card";
+import { MealAnalysisPreview } from "@/components/meal-analysis-preview";
 import { SaveEntryButton } from "@/components/save-entry-button";
 import { FoodItem, searchFoods } from "@/lib/food";
 
@@ -75,6 +76,11 @@ export default function AddMealPage() {
     setFoodResults([]);
     setFoodSearch(food.food_name);
   }
+
+  const mealPreviewText = useMemo(
+    () => [mealName, ingredients, drinks].filter(Boolean).join(", "),
+    [mealName, ingredients, drinks]
+  );
 
   return (
     <AppShell
@@ -211,6 +217,8 @@ export default function AddMealPage() {
           Notes
           <textarea className={inputClass} rows={4} value={notes} onChange={(e) => setNotes(e.target.value)} />
         </label>
+
+        <MealAnalysisPreview mealText={mealPreviewText} />
 
         <SaveEntryButton
           table="meals"
