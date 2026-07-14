@@ -1,0 +1,271 @@
+{
+  "project": "MUNA IBS",
+  "dataset_name": "Verified IBS Scientific Guidance — Version 1",
+  "dataset_version": "1.0.0",
+  "generated_at": "2026-07-14T13:50:00.000Z",
+  "record_count": 8,
+  "scope": "Short original MUNA summaries derived from publicly available official guidance. Full guideline documents are not reproduced. All records require human clinical review before approval.",
+  "approved_source_organisations": [
+    "NICE",
+    "American College of Gastroenterology",
+    "Monash University FODMAP",
+    "NHS"
+  ],
+  "intended_use": [
+    "verified_clinical_guidance_retrieval",
+    "patient_education_support",
+    "safety_awareness",
+    "muna_ai_context_when_approved"
+  ],
+  "not_intended_for": [
+    "diagnosis",
+    "prescribing",
+    "medication_dosing",
+    "prevalence_estimation",
+    "treatment_efficacy_guarantees",
+    "replacement_of_clinician_judgment"
+  ],
+  "data_dictionary": {
+    "external_id": "Stable unique identifier (VG001–VG008)",
+    "title": "Human-readable guidance title",
+    "source_organisation": "Approved publishing organisation",
+    "source_type": "Nature of the source document",
+    "published_on": "Official publication date when known",
+    "last_reviewed_on": "Official last review date when publication date is unavailable",
+    "topic": "Primary topic tag for retrieval",
+    "evidence_type": "guideline | official_patient_guidance | university_clinical_guidance | consensus",
+    "summary": "Short original MUNA summary",
+    "recommendation": "Plain-language action-oriented guidance",
+    "contraindications": "Situations where self-directed action may be unsafe",
+    "red_flags": "Symptoms or scenarios requiring medical review",
+    "citation_url": "Official source URL",
+    "citation_title": "Official source title",
+    "review_status": "draft | reviewed | approved",
+    "reviewer_note": "Human review notes",
+    "version": "Record version string",
+    "is_active": "Whether the record may be imported as active"
+  },
+  "items": [
+    {
+      "external_id": "VG001",
+      "title": "IBS overview and gut–brain interaction",
+      "source_organisation": "NICE",
+      "source_type": "national_guideline",
+      "published_on": "2017-02-23",
+      "last_reviewed_on": null,
+      "topic": "ibs_overview",
+      "evidence_type": "guideline",
+      "summary": "Irritable bowel syndrome is a long-term functional disorder of gut–brain interaction. Symptoms can fluctuate and are influenced by food, stress, sleep and daily routines. Official guidance describes IBS as a condition managed through assessment, lifestyle support and clinician-guided care rather than a single cure.",
+      "recommendation": "Treat IBS as a chronic condition that may need ongoing review. Track symptoms, discuss patterns with a qualified clinician, and combine general lifestyle support with professional assessment when symptoms change.",
+      "contraindications": [
+        "self_diagnosis_without_clinical_assessment",
+        "ignoring_new_or_worsening_symptoms"
+      ],
+      "red_flags": [
+        "unexplained_weight_loss",
+        "rectal_bleeding",
+        "persistent_severe_pain",
+        "symptoms_beginning_after_age_50_without_prior_assessment"
+      ],
+      "citation_url": "https://www.nice.org.uk/guidance/cg61",
+      "citation_title": "NICE Guideline CG61: Irritable bowel syndrome in adults",
+      "review_status": "draft",
+      "reviewer_note": "Requires clinical review before approval. Summary is original; verify alignment with current NICE CG61.",
+      "version": "1.0.0",
+      "is_active": true
+    },
+    {
+      "external_id": "VG002",
+      "title": "Common IBS symptoms",
+      "source_organisation": "NHS",
+      "source_type": "patient_information",
+      "published_on": null,
+      "last_reviewed_on": "2024-01-01",
+      "topic": "common_symptoms",
+      "evidence_type": "official_patient_guidance",
+      "summary": "Common IBS symptoms can include abdominal pain or cramps, bloating, and changes in bowel habit such as diarrhoea, constipation, or alternating patterns. Symptoms often vary over time and may be triggered or worsened by food, stress or irregular routines.",
+      "recommendation": "Use symptom tracking to notice patterns, but seek medical review if symptoms are new, severe, persistent, or unlike your usual pattern.",
+      "contraindications": [
+        "assuming_all_abdominal_symptoms_are_ibs_without_assessment"
+      ],
+      "red_flags": [
+        "blood_in_stool",
+        "unexplained_weight_loss",
+        "persistent_vomiting",
+        "swelling_or_lump_in_abdomen"
+      ],
+      "citation_url": "https://www.nhs.uk/conditions/irritable-bowel-syndrome-ibs/symptoms/",
+      "citation_title": "NHS: Irritable bowel syndrome (IBS) symptoms",
+      "review_status": "draft",
+      "reviewer_note": "Requires clinical review before approval. Confirm NHS page remains current.",
+      "version": "1.0.0",
+      "is_active": true
+    },
+    {
+      "external_id": "VG003",
+      "title": "Red flags and when to seek medical review",
+      "source_organisation": "NICE",
+      "source_type": "national_guideline",
+      "published_on": "2017-02-23",
+      "last_reviewed_on": null,
+      "topic": "red_flags",
+      "evidence_type": "guideline",
+      "summary": "Official IBS guidance emphasises that certain symptoms are not typical of uncomplicated IBS alone and require medical assessment. These include rectal bleeding, unexplained weight loss, anaemia, persistent severe pain, nocturnal symptoms that wake a person from sleep, and family history of bowel or ovarian cancer.",
+      "recommendation": "Seek prompt medical review for red-flag symptoms. Do not attribute these to IBS without appropriate clinical assessment.",
+      "contraindications": [
+        "delaying_medical_assessment_when_red_flags_are_present",
+        "using_lifestyle_changes_instead_of_urgent_review_for_alarm_symptoms"
+      ],
+      "red_flags": [
+        "rectal_bleeding",
+        "unexplained_weight_loss",
+        "iron_deficiency_anaemia",
+        "nocturnal_symptoms_waking_from_sleep",
+        "family_history_of_bowel_or_ovarian_cancer",
+        "persistent_severe_abdominal_pain"
+      ],
+      "citation_url": "https://www.nice.org.uk/guidance/cg61",
+      "citation_title": "NICE Guideline CG61: Irritable bowel syndrome in adults",
+      "review_status": "draft",
+      "reviewer_note": "Requires clinical review before approval. Red-flag list must match current referral criteria.",
+      "version": "1.0.0",
+      "is_active": true
+    },
+    {
+      "external_id": "VG004",
+      "title": "General diet and lifestyle principles",
+      "source_organisation": "American College of Gastroenterology",
+      "source_type": "professional_guideline",
+      "published_on": "2021-01-01",
+      "last_reviewed_on": null,
+      "topic": "diet_lifestyle",
+      "evidence_type": "guideline",
+      "summary": "Clinical guidance for IBS commonly includes regular meals, adequate hydration, physical activity where tolerated, stress awareness, and identifying individual dietary triggers. General lifestyle measures are usually considered alongside professional assessment rather than as a standalone treatment plan.",
+      "recommendation": "Focus on consistent routines, balanced meals, hydration and movement where comfortable. Discuss persistent triggers with a clinician or dietitian before making major dietary changes.",
+      "contraindications": [
+        "severe_food_restriction_without_professional_supervision",
+        "rapid_unsupervised_elimination_diets"
+      ],
+      "red_flags": [
+        "significant_unintentional_weight_loss",
+        "inability_to_maintain_adequate_nutrition"
+      ],
+      "citation_url": "https://webfiles.gi.org/links/PCC/ACG_Clinical_Guideline__Management_of_Irritable.11.pdf",
+      "citation_title": "ACG Clinical Guideline: Management of Irritable Bowel Syndrome",
+      "review_status": "draft",
+      "reviewer_note": "Requires clinical review before approval. Verify alignment with ACG 2021 guideline summary points only.",
+      "version": "1.0.0",
+      "is_active": true
+    },
+    {
+      "external_id": "VG005",
+      "title": "Low-FODMAP three-stage process",
+      "source_organisation": "Monash University FODMAP",
+      "source_type": "university_program",
+      "published_on": null,
+      "last_reviewed_on": "2024-06-01",
+      "topic": "low_fodmap",
+      "evidence_type": "university_clinical_guidance",
+      "summary": "The Monash low-FODMAP approach is usually described in three stages: short-term reduction of high-FODMAP foods, structured reintroduction to identify personal tolerance, and long-term personalisation. It is intended as a temporary learning process supervised by a trained dietitian rather than a permanent restrictive diet.",
+      "recommendation": "If considering low-FODMAP dietary strategies, plan the three stages with a dietitian-trained professional. Avoid staying in the strict elimination phase long-term without review.",
+      "contraindications": [
+        "prolonged_strict_elimination_without_dietitian_supervision",
+        "applying_low_fodmap_during_active_eating_disorder_risk_without_medical_support"
+      ],
+      "red_flags": [
+        "rapid_weight_loss_during_elimination",
+        "avoidance_of_most_foods",
+        "symptoms_worsening_despite_strict_restriction"
+      ],
+      "citation_url": "https://www.monashfodmap.com/ibs-central/i-have-ibs/starting-the-low-fodmap-diet/",
+      "citation_title": "Monash FODMAP: Starting the low FODMAP diet",
+      "review_status": "draft",
+      "reviewer_note": "Requires clinical review before approval. Confirm three-stage wording matches Monash public guidance.",
+      "version": "1.0.0",
+      "is_active": true
+    },
+    {
+      "external_id": "VG006",
+      "title": "Food restriction and nutrition safety",
+      "source_organisation": "NICE",
+      "source_type": "national_guideline",
+      "published_on": "2017-02-23",
+      "last_reviewed_on": null,
+      "topic": "nutrition_safety",
+      "evidence_type": "guideline",
+      "summary": "Official IBS guidance warns against unnecessary or prolonged dietary restriction that may reduce nutritional adequacy. People who restrict multiple foods, lose weight unintentionally, or become anxious about eating may need dietitian and medical review.",
+      "recommendation": "Keep dietary changes focused and time-limited where possible. Seek dietitian support if restriction is broad, prolonged, or affecting weight, energy or mood.",
+      "contraindications": [
+        "eliminating_major_food_groups_without_assessment",
+        "continuing_restrictive_diets_despite_weight_loss"
+      ],
+      "red_flags": [
+        "unintentional_weight_loss",
+        "nutritional_deficiency_concerns",
+        "fear_of_eating_most_foods"
+      ],
+      "citation_url": "https://www.nice.org.uk/guidance/cg61",
+      "citation_title": "NICE Guideline CG61: Irritable bowel syndrome in adults",
+      "review_status": "draft",
+      "reviewer_note": "Requires clinical review before approval. Nutrition safety wording must be checked against NICE dietitian referral advice.",
+      "version": "1.0.0",
+      "is_active": true
+    },
+    {
+      "external_id": "VG007",
+      "title": "Psychological and gut-directed support",
+      "source_organisation": "American College of Gastroenterology",
+      "source_type": "patient_information",
+      "published_on": null,
+      "last_reviewed_on": "2024-01-01",
+      "topic": "psychological_support",
+      "evidence_type": "official_patient_guidance",
+      "summary": "Patient-oriented IBS guidance notes that stress and mood can influence gut symptoms through the gut–brain axis. Gut-directed psychological therapies and clinician-guided support may be helpful for some people alongside medical care.",
+      "recommendation": "Consider stress management, sleep routines and professional psychological or gut-directed therapy options with a qualified clinician if symptoms are strongly linked to anxiety, stress or life disruption.",
+      "contraindications": [
+        "using_unqualified_programmes_as_substitute_for_medical_assessment",
+        "dismissing_physical_symptoms_as_only_psychological_without_review"
+      ],
+      "red_flags": [
+        "severe_depression_or_anxiety_requiring_urgent_support",
+        "suicidal_thoughts",
+        "symptoms_preventing_basic_daily_function_without_care_plan"
+      ],
+      "citation_url": "https://gi.org/topics/irritable-bowel-syndrome/",
+      "citation_title": "ACG Patient Center: Irritable Bowel Syndrome",
+      "review_status": "draft",
+      "reviewer_note": "Requires clinical review before approval. Verify patient-facing ACG wording and therapy scope.",
+      "version": "1.0.0",
+      "is_active": true
+    },
+    {
+      "external_id": "VG008",
+      "title": "Persistent diarrhoea or constipation requiring reassessment",
+      "source_organisation": "NICE",
+      "source_type": "national_guideline",
+      "published_on": "2017-02-23",
+      "last_reviewed_on": null,
+      "topic": "bowel_habit_reassessment",
+      "evidence_type": "guideline",
+      "summary": "When diarrhoea or constipation is persistent, worsening, nocturnal, or associated with alarm features, official guidance supports reassessment rather than assuming unchanged IBS. Clinicians may consider alternative diagnoses and further investigation depending on the presentation.",
+      "recommendation": "Arrange medical review if bowel habit changes are persistent, severe, nocturnal, or accompanied by weight loss, bleeding, anaemia or marked pain.",
+      "contraindications": [
+        "continuing_self_management_indefinitely_when_symptoms_persist_or_worsen",
+        "assuming_ibs_subtype_never_changes_without_reassessment"
+      ],
+      "red_flags": [
+        "nocturnal_diarrhoea",
+        "persistent_constipation_unresponsive_to_safe_self_care",
+        "rectal_bleeding",
+        "unexplained_weight_loss",
+        "new_symptoms_after_age_50"
+      ],
+      "citation_url": "https://www.nice.org.uk/guidance/cg61",
+      "citation_title": "NICE Guideline CG61: Irritable bowel syndrome in adults",
+      "review_status": "draft",
+      "reviewer_note": "Requires clinical review before approval. Reassessment criteria must match current NICE referral guidance.",
+      "version": "1.0.0",
+      "is_active": true
+    }
+  ]
+}
