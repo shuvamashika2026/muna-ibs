@@ -1,0 +1,139 @@
+{
+    "schema_name": "MUNA IBS Knowledge Schema",
+    "schema_version": "1.0.0",
+    "description": "Standard structure for all clinical, community and personalised knowledge used by the MUNA IBS application.",
+  
+    "required_fields": [
+      "id",
+      "entity_type",
+      "name",
+      "summary",
+      "evidence_layer",
+      "confidence",
+      "tags",
+      "safety"
+    ],
+  
+    "entity_types": [
+      "symptom",
+      "trigger",
+      "food",
+      "medication",
+      "supplement",
+      "condition",
+      "diagnostic_test",
+      "red_flag",
+      "coping_strategy",
+      "quality_of_life",
+      "community_pattern",
+      "clinical_rule"
+    ],
+  
+    "evidence_layers": [
+      "clinical",
+      "community",
+      "research",
+      "personal"
+    ],
+  
+    "confidence_levels": [
+      "low",
+      "low_to_moderate",
+      "moderate",
+      "moderate_to_high",
+      "high"
+    ],
+  
+    "priority_levels": [
+      "low",
+      "moderate",
+      "high",
+      "critical"
+    ],
+  
+    "knowledge_item_template": {
+      "id": "UNIQUE_ID",
+      "entity_type": "symptom",
+      "name": "Human-readable name",
+      "summary": "Concise explanation of the knowledge item",
+  
+      "aliases": [],
+  
+      "evidence_layer": "community",
+      "evidence_type": "Aggregated anonymised patient reports",
+      "confidence": "moderate",
+      "priority": "moderate",
+  
+      "ibs_subtypes": [
+        "ibs_d",
+        "ibs_c",
+        "ibs_m",
+        "ibs_u"
+      ],
+  
+      "symptoms": [],
+      "triggers": [],
+      "associated_factors": [],
+      "interventions": [],
+      "reported_benefits": [],
+      "reported_failures": [],
+      "possible_side_effects": [],
+      "quality_of_life_impacts": [],
+  
+      "timing_patterns": [],
+      "location_patterns": [],
+      "food_preparation_factors": [],
+      "portion_factors": [],
+      "stress_relationship": null,
+  
+      "possible_related_conditions": [],
+  
+      "clinical_notes": [],
+      "community_notes": [],
+  
+      "safety": {
+        "red_flags": [],
+        "requires_medical_review": false,
+        "requires_urgent_care": false,
+        "unsafe_advice_to_exclude": []
+      },
+  
+      "recommended_ai_response": "",
+      "follow_up_questions": [],
+  
+      "tags": [],
+  
+      "source_metadata": {
+        "source_type": "community_discussion",
+        "anonymised": true,
+        "participant_names_removed": true,
+        "exact_peer_doses_removed": true
+      },
+  
+      "status": "active",
+      "version": "1.0.0",
+      "last_updated": "2026-07-13"
+    },
+  
+    "ai_evidence_order": [
+      "safety_rules",
+      "clinical_evidence",
+      "personal_user_history",
+      "research_evidence",
+      "community_evidence",
+      "general_conversation"
+    ],
+  
+    "mandatory_ai_rules": [
+      "Never diagnose a user from community knowledge.",
+      "Run red-flag screening before giving routine IBS guidance.",
+      "Clearly label community information as patient-reported experience.",
+      "The user's own tracked history takes priority over general community patterns.",
+      "Preserve conflicting outcomes and individual variability.",
+      "Never reproduce exact medication doses copied from social media.",
+      "Exclude miracle cures, detoxes, parasite cleanses and commercial promotions.",
+      "Do not present a possible related condition as a confirmed diagnosis.",
+      "Recommend medical review when symptoms are persistent, severe, new or changing.",
+      "Do not recommend prolonged restrictive diets without nutrition-risk screening."
+    ]
+  }

@@ -1,0 +1,100 @@
+{
+    "id": "SYM001",
+    "name": "Abdominal Pain",
+    "category": "Symptom",
+    "description": "Pain or discomfort anywhere in the abdomen commonly reported by people with Irritable Bowel Syndrome (IBS).",
+  
+    "aliases": [
+      "stomach pain",
+      "belly pain",
+      "tummy pain",
+      "gut pain",
+      "abdominal cramps",
+      "stomach ache",
+      "gut ache",
+      "intestinal pain",
+      "pain after eating",
+      "lower abdominal pain"
+    ],
+  
+    "community_patterns": {
+      "common_locations": [
+        "Lower left abdomen",
+        "Lower right abdomen",
+        "Around the belly button",
+        "Upper abdomen",
+        "Entire abdomen",
+        "Pain radiating to the back"
+      ],
+  
+      "common_descriptions": [
+        "Cramping",
+        "Sharp",
+        "Stabbing",
+        "Burning",
+        "Twisting",
+        "Pressure",
+        "Labor-like pain",
+        "Gas pain"
+      ],
+  
+      "timing": [
+        "After eating",
+        "Before bowel movement",
+        "During bowel movement",
+        "Morning",
+        "During stress",
+        "After trigger foods"
+      ]
+    },
+  
+    "associated_symptoms": [
+      "Bloating",
+      "Gas",
+      "Urgency",
+      "Diarrhea",
+      "Constipation",
+      "Incomplete evacuation",
+      "Nausea"
+    ],
+  
+    "common_triggers": [
+      "Stress",
+      "Anxiety",
+      "Large meals",
+      "High-fat meals",
+      "Onion",
+      "Garlic",
+      "Spicy foods",
+      "Gluten (some people)",
+      "Dairy (some people)",
+      "Poor sleep"
+    ],
+  
+    "community_relief_methods": [
+      "Heating pad",
+      "Hot water bottle",
+      "Peppermint tea",
+      "Walking",
+      "Rest",
+      "Buscopan",
+      "Peppermint oil capsules",
+      "Gentle stretching"
+    ],
+  
+    "red_flags": [
+      "Persistent severe pain",
+      "Pain with fever",
+      "Blood in stool",
+      "Unexplained weight loss",
+      "Persistent vomiting",
+      "Pain waking from sleep"
+    ],
+  
+    "confidence": {
+      "community": "High",
+      "medical_evidence": "High"
+    },
+  
+    "last_updated": "2026-07-13"
+  }
