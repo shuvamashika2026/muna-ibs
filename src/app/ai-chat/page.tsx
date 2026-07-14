@@ -16,7 +16,9 @@ import { AiChatHome } from "@/components/ai-chat/ai-chat-home";
 import { AiResponseCards } from "@/components/ai-chat/ai-response-cards";
 import { AiThinking } from "@/components/ai-chat/ai-thinking";
 import { FollowUpChips } from "@/components/ai-chat/follow-up-chips";
-import { buildFollowUpSuggestions } from "@/components/ai-chat/parse-ai-response";
+import { buildFollowUpSuggestions, type ConfidenceLevel } from "@/components/ai-chat/parse-ai-response";
+import type { MiosSafetyStatus } from "@/lib/mios/types";
+import type { ResponseTemplate, StructuredResponseCard, UserSafeEvidenceSummary } from "@/lib/response-engine/types";
 import { supabase } from "@/lib/supabase";
 
 type ChatMessage = {
@@ -24,6 +26,29 @@ type ChatMessage = {
   content: string;
   timestamp: string;
   followUps?: string[];
+  template?: ResponseTemplate;
+  cards?: StructuredResponseCard[];
+  safetyStatus?: MiosSafetyStatus;
+  confidenceLabel?: ConfidenceLevel | null;
+  showConfidenceBadge?: boolean;
+  showAssociationFooter?: boolean;
+  evidenceSummary?: UserSafeEvidenceSummary;
+};
+
+type MunaAiApiResponse = {
+  answer?: string;
+  error?: string;
+  intent?: string;
+  template?: ResponseTemplate;
+  safetyStatus?: MiosSafetyStatus;
+  confidence?: string;
+  confidenceLabel?: ConfidenceLevel | null;
+  evidenceSummary?: UserSafeEvidenceSummary;
+  missingEvidence?: string[];
+  suggestedFollowUps?: string[];
+  cards?: StructuredResponseCard[];
+  showConfidenceBadge?: boolean;
+  showAssociationFooter?: boolean;
 };
 
 type SpeechRecognitionInstance = {
@@ -195,18 +220,30 @@ export default function AiChatPage() {
         }),
       });
 
-      const data = (await response.json()) as { answer?: string; error?: string };
+      const data = (await response.json()) as MunaAiApiResponse;
 
       if (!response.ok) {
         throw new Error(data.error || "MUNA AI could not respond right now.");
       }
 
       const answer = data.answer || "I could not generate a response right now.";
-      const followUps = buildFollowUpSuggestions(trimmed, answer);
+      const followUps = buildFollowUpSuggestions(trimmed, answer, data.suggestedFollowUps);
 
       setMessages((current) => [
         ...current,
-        { role: "assistant", content: answer, timestamp: getTimeStamp(), followUps },
+        {
+          role: "assistant",
+          content: answer,
+          timestamp: getTimeStamp(),
+          followUps,
+          template: data.template,
+          cards: data.cards,
+          safetyStatus: data.safetyStatus,
+          confidenceLabel: data.confidenceLabel ?? null,
+          showConfidenceBadge: data.showConfidenceBadge ?? false,
+          showAssociationFooter: data.showAssociationFooter ?? false,
+          evidenceSummary: data.evidenceSummary,
+        },
       ]);
 
       if (speakAnswer) {
@@ -538,6 +575,13 @@ function AssistantReply({
           content={message.content}
           timestamp={message.timestamp}
           onSpeak={onSpeak}
+          template={message.template}
+          cards={message.cards}
+          safetyStatus={message.safetyStatus}
+          confidenceLabel={message.confidenceLabel}
+          showConfidenceBadge={message.showConfidenceBadge}
+          showAssociationFooter={message.showAssociationFooter}
+          suggestedFollowUps={message.followUps}
         />
         <FollowUpChips suggestions={followUps} onPick={onFollowUp} disabled={disabled} />
       </div>

@@ -4,6 +4,21 @@ import { createClient, type SupabaseClient } from "@supabase/supabase-js";
 import { MUNA_AI_COMMUNITY_RULES } from "@/lib/community-knowledge/build-ai-context";
 import { prepareMiosForRoute } from "@/lib/mios/prepare-orchestration";
 import {
+  buildMdreSelection,
+  buildMissingEvidence,
+  buildUserSafeEvidenceSummary,
+  mapMiosConfidenceToDisplayLabel,
+  shouldShowAssociationFooter,
+} from "@/lib/response-engine/selector";
+import {
+  buildFallbackStructuredOutput,
+  buildJsonRepairInstructions,
+  buildStructuredOutputInstructions,
+  cardsToAnswerText,
+  extractJsonFromModelOutput,
+  validateStructuredModelOutput,
+} from "@/lib/response-engine/templates";
+import {
   classifyFoodItem,
   formatFodmapLevelLabel,
   splitMealText,
@@ -1292,6 +1307,48 @@ function openAIUserMessage(error: unknown): string {
   return "MUNA AI could not respond right now. Please try again in a moment.";
 }
 
+async function createModelResponse(
+  client: OpenAI,
+  requestPayload: {
+    instructions: string;
+    input: string;
+    temperature: number;
+    max_output_tokens: number;
+  }
+) {
+  try {
+    return await client.responses.create({
+      model: "gpt-4.1-mini",
+      ...requestPayload,
+    });
+  } catch (primaryError) {
+    if (isQuotaOrRateLimitError(primaryError)) {
+      throw primaryError;
+    }
+
+    if (!isModelAvailabilityError(primaryError)) {
+      throw primaryError;
+    }
+
+    return client.responses.create({
+      model: "gpt-4o-mini",
+      ...requestPayload,
+    });
+  }
+}
+
+function resolveStructuredOutput(
+  rawOutput: string,
+  template: ReturnType<typeof buildMdreSelection>["template"]
+) {
+  const parsedJson = extractJsonFromModelOutput(rawOutput);
+  const validated = parsedJson ? validateStructuredModelOutput(parsedJson, template) : null;
+  if (validated) {
+    return validated;
+  }
+  return buildFallbackStructuredOutput(template, rawOutput);
+}
+
 export async function POST(request: Request) {
   try {
     const apiKey = process.env.OPENAI_API_KEY;
@@ -1357,6 +1414,16 @@ export async function POST(request: Request) {
       routeRedFlagMatched,
     });
 
+    const mdreSelection = buildMdreSelection({
+      orchestration: miosPreparation.orchestration,
+      urgentSafety: miosPreparation.urgentSafety,
+    });
+
+    const mdreOutputInstructions = buildStructuredOutputInstructions(
+      mdreSelection.template,
+      miosPreparation.orchestration
+    );
+
     const urgentSafety = miosPreparation.urgentSafety;
 
     const redFlagContext = urgentSafety
@@ -1392,7 +1459,7 @@ ${miosPreparation.reasoningContext}
       .join("\n");
 
     const requestPayload = {
-      instructions: `${systemPrompt}${redFlagContext}`,
+      instructions: `${systemPrompt}${redFlagContext}${mdreOutputInstructions}`,
       input: `
 Health context:
 ${healthContext}
@@ -1407,45 +1474,78 @@ User question:
 ${message}
 `,
       temperature: 0.4,
-      max_output_tokens: 650,
+      max_output_tokens: 900,
     };
 
     let response;
 
     try {
-      response = await client.responses.create({
-        model: "gpt-4.1-mini",
-        ...requestPayload,
-      });
+      response = await createModelResponse(client, requestPayload);
     } catch (primaryError) {
       if (isQuotaOrRateLimitError(primaryError)) {
         return NextResponse.json({ error: openAIUserMessage(primaryError) }, { status: 503 });
       }
+      return NextResponse.json({ error: openAIUserMessage(primaryError) }, { status: 502 });
+    }
 
-      if (!isModelAvailabilityError(primaryError)) {
-        return NextResponse.json({ error: openAIUserMessage(primaryError) }, { status: 502 });
-      }
+    let rawOutput = response.output_text?.trim() ?? "";
+    let structured = resolveStructuredOutput(rawOutput, mdreSelection.template);
 
+    const initialValid = validateStructuredModelOutput(
+      extractJsonFromModelOutput(rawOutput),
+      mdreSelection.template
+    );
+
+    if (!initialValid) {
       try {
-        response = await client.responses.create({
-          model: "gpt-4o-mini",
+        const repairResponse = await createModelResponse(client, {
           ...requestPayload,
+          instructions: `${requestPayload.instructions}\n\n${buildJsonRepairInstructions(mdreSelection.template, rawOutput)}`,
         });
-      } catch (fallbackError) {
-        return NextResponse.json({ error: openAIUserMessage(fallbackError) }, { status: 502 });
+        const repairedOutput = repairResponse.output_text?.trim() ?? "";
+        if (repairedOutput) {
+          rawOutput = repairedOutput;
+          structured = resolveStructuredOutput(repairedOutput, mdreSelection.template);
+        }
+      } catch {
+        structured = buildFallbackStructuredOutput(mdreSelection.template, rawOutput);
       }
     }
 
-    const answer = response.output_text?.trim();
+    const answer = cardsToAnswerText(structured.cards);
+    const evidenceSummary = buildUserSafeEvidenceSummary(miosPreparation.orchestration);
+    const missingEvidence = buildMissingEvidence(miosPreparation.orchestration);
+    const suggestedFollowUps =
+      structured.followUps.length > 0
+        ? structured.followUps
+        : miosPreparation.orchestration?.responsePlan.suggestedFollowUps ?? [];
 
-    if (!answer) {
+    if (!answer.trim()) {
       return NextResponse.json(
         { error: "MUNA AI returned an empty response. Please try again in a moment." },
         { status: 502 }
       );
     }
 
-    return NextResponse.json({ answer });
+    return NextResponse.json({
+      answer,
+      intent: mdreSelection.intent,
+      template: mdreSelection.template,
+      safetyStatus: mdreSelection.safetyStatus,
+      confidence: mdreSelection.confidence,
+      confidenceLabel: mdreSelection.showConfidenceBadge
+        ? mapMiosConfidenceToDisplayLabel(mdreSelection.confidence)
+        : null,
+      evidenceSummary,
+      missingEvidence,
+      suggestedFollowUps,
+      cards: structured.cards,
+      showConfidenceBadge: mdreSelection.showConfidenceBadge,
+      showAssociationFooter: shouldShowAssociationFooter(
+        mdreSelection.template,
+        mdreSelection.safetyStatus
+      ),
+    });
   } catch {
     return NextResponse.json(
       { error: "MUNA AI could not respond right now. Please try again in a moment." },

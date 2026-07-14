@@ -1,3 +1,11 @@
+import type { MiosSafetyStatus } from "@/lib/mios/types";
+import {
+  buildFallbackStructuredOutput,
+  extractJsonFromModelOutput,
+  validateStructuredModelOutput,
+} from "@/lib/response-engine/templates";
+import type { ResponseTemplate, StructuredResponseCard } from "@/lib/response-engine/types";
+
 export type ConfidenceLevel = "Limited" | "Moderate" | "Higher";
 
 export type ParsedAiResponse = {
@@ -7,6 +15,18 @@ export type ParsedAiResponse = {
   nextStep: string | null;
   encouragement: string | null;
   confidence: ConfidenceLevel;
+  rawContent: string;
+};
+
+export type ParsedMdreResponse = {
+  template: ResponseTemplate;
+  cards: StructuredResponseCard[];
+  followUps: string[];
+  confidence: ConfidenceLevel | null;
+  safetyStatus: MiosSafetyStatus;
+  showConfidenceBadge: boolean;
+  showAssociationFooter: boolean;
+  isStructured: boolean;
   rawContent: string;
 };
 
@@ -80,7 +100,7 @@ export function inferConfidence(content: string): ConfidenceLevel {
   if (
     lower.includes("higher confidence") ||
     lower.includes("confidence: higher") ||
-    lower.includes("data confidence") && lower.includes("higher")
+    (lower.includes("data confidence") && lower.includes("higher"))
   ) {
     return "Higher";
   }
@@ -95,7 +115,8 @@ export function inferConfidence(content: string): ConfidenceLevel {
 
   if (
     lower.includes("low confidence") ||
-    lower.includes("confidence: low") ||
+    lower.includes("confidence: limited") ||
+    lower.includes("limited confidence") ||
     lower.includes("limited data") ||
     lower.includes("insufficient") ||
     lower.includes("not enough logged") ||
@@ -150,7 +171,8 @@ export function parseAiResponse(content: string): ParsedAiResponse {
     (sentence) =>
       !used.has(sentence) &&
       !isDisclaimer(sentence) &&
-      (sentence.length > 24 || includesAny(sentence, ["logged", "your ", "sleep", "stress", "symptom", "meal", "water", "bristol"]))
+      (sentence.length > 24 ||
+        includesAny(sentence, ["logged", "your ", "sleep", "stress", "symptom", "meal", "water", "bristol"]))
   );
 
   const possiblePattern = patternSentences.slice(0, 2).join(" ") || null;
@@ -200,7 +222,56 @@ export function parseAiResponse(content: string): ParsedAiResponse {
   };
 }
 
-export function buildFollowUpSuggestions(userQuestion: string, answer: string): string[] {
+export function parseMdreResponse(input: {
+  rawContent: string;
+  template: ResponseTemplate;
+  safetyStatus: MiosSafetyStatus;
+  showConfidenceBadge: boolean;
+  showAssociationFooter: boolean;
+  confidenceLabel?: ConfidenceLevel | null;
+  followUps?: string[];
+}): ParsedMdreResponse {
+  const parsedJson = extractJsonFromModelOutput(input.rawContent);
+  const validated = parsedJson ? validateStructuredModelOutput(parsedJson, input.template) : null;
+
+  if (validated) {
+    return {
+      template: input.template,
+      cards: validated.cards,
+      followUps: validated.followUps.length ? validated.followUps : input.followUps ?? [],
+      confidence: input.showConfidenceBadge ? input.confidenceLabel ?? inferConfidence(input.rawContent) : null,
+      safetyStatus: input.safetyStatus,
+      showConfidenceBadge: input.showConfidenceBadge,
+      showAssociationFooter: input.showAssociationFooter,
+      isStructured: true,
+      rawContent: input.rawContent,
+    };
+  }
+
+  const fallback = buildFallbackStructuredOutput(input.template, input.rawContent);
+
+  return {
+    template: input.template,
+    cards: fallback.cards,
+    followUps: fallback.followUps.length ? fallback.followUps : input.followUps ?? [],
+    confidence: input.showConfidenceBadge ? input.confidenceLabel ?? inferConfidence(input.rawContent) : null,
+    safetyStatus: input.safetyStatus,
+    showConfidenceBadge: input.showConfidenceBadge,
+    showAssociationFooter: input.showAssociationFooter,
+    isStructured: false,
+    rawContent: input.rawContent,
+  };
+}
+
+export function buildFollowUpSuggestions(
+  userQuestion: string,
+  answer: string,
+  suggestedFollowUps?: string[]
+): string[] {
+  if (suggestedFollowUps?.length) {
+    return suggestedFollowUps.slice(0, 4);
+  }
+
   const lower = `${userQuestion} ${answer}`.toLowerCase();
   const suggestions: string[] = [];
 
@@ -219,4 +290,8 @@ export function buildFollowUpSuggestions(userQuestion: string, answer: string): 
   suggestions.push("Can you explain that more simply?");
 
   return Array.from(new Set(suggestions)).slice(0, 4);
+}
+
+export function cardsToSpeakableText(cards: StructuredResponseCard[]): string {
+  return cards.map((card) => card.content).join(" ");
 }

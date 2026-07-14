@@ -1,4 +1,5 @@
 import { orchestrateMios } from "@/lib/mios/orchestrator";
+import { detectIntent } from "@/lib/mios/intent";
 import type { MiosEvidenceItem, MiosOrchestratorInput, MiosSafetyResult } from "@/lib/mios/types";
 import { MIOS_SOURCE_LABELS } from "@/lib/mios/types";
 
@@ -233,6 +234,37 @@ export function runMiosVerification(): {
           result.responsePlan.confidence === "unavailable" &&
           result.mergedEvidence.items.length === 0
         );
+      },
+    },
+    {
+      id: "H. Tablets for diarrhoea → medication before bowel_habits",
+      run: () => detectIntent("How many tablets should I take for diarrhoea?") === "medication",
+    },
+    {
+      id: "I. Imodium tablet count → medication",
+      run: () => detectIntent("Can I take two Imodium tablets?") === "medication",
+    },
+    {
+      id: "J. Increase constipation medicine → medication",
+      run: () => detectIntent("Should I increase my constipation medicine?") === "medication",
+    },
+    {
+      id: "K. Overdose with faint → emergency",
+      run: () => detectIntent("I took too many tablets and feel faint") === "emergency",
+    },
+    {
+      id: "L. Diarrhoea with blood → emergency",
+      run: () => detectIntent("I have diarrhoea and blood in the toilet") === "emergency",
+    },
+    {
+      id: "M. Stool type question → bowel_habits",
+      run: () => detectIntent("Why is my stool type 5?") === "bowel_habits",
+    },
+    {
+      id: "N. Diarrhoea today → bowel_habits or symptoms",
+      run: () => {
+        const intent = detectIntent("I have diarrhoea today");
+        return intent === "bowel_habits" || intent === "symptoms";
       },
     },
   ];

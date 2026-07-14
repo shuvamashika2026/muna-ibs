@@ -30,6 +30,11 @@ const EMERGENCY_PHRASES = [
   "unexplained weight loss",
   "severe abdominal swelling",
   "vomiting with constipation",
+  "feel faint",
+  "feeling faint",
+  "too many tablets",
+  "too many pills",
+  "too many capsules",
 ];
 
 const EXPERIMENT_PATTERNS = [
@@ -42,9 +47,24 @@ const EXPERIMENT_PATTERNS = [
 ];
 
 const MEDICATION_PATTERNS = [
+  /\bhow many (tablets|pills|capsules)\b/i,
   /\bhow much .+ (mg|mcg|milligram|microgram)\b/i,
   /\bwhat dose\b/i,
-  /\bshould i (take|stop|quit|skip) (my )?(medication|medicine|prescription|pill|tablet)\b/i,
+  /\bcorrect dosage\b/i,
+  /\btake more\b/i,
+  /\btake another\b/i,
+  /\bincrease (my )?(dose|medication|medicine|meds)\b/i,
+  /\bincrease (my )?\w+ (medicine|medication|meds)\b/i,
+  /\breduce (my )?(dose|medication|medicine|meds)\b/i,
+  /\bstop (my )?(medicine|medication|meds|prescription)\b/i,
+  /\bstop medicine\b/i,
+  /\bskip (a |my )?dose\b/i,
+  /\bmissed (a |my )?dose\b/i,
+  /\bdouble (a |my )?dose\b/i,
+  /\bhow often should i take\b/i,
+  /\bcan i take\b/i,
+  /\bshould i take\b/i,
+  /\bshould i (take|stop|quit|skip) (my )?(medication|medicine|prescription|pill|tablet|capsule)\b/i,
   /\b(mg|mcg)\b/i,
   /\bprescribe\b/i,
   /\bmedication dose\b/i,
@@ -123,6 +143,10 @@ function matchesAnyPattern(question: string, patterns: RegExp[]): boolean {
   return patterns.some((pattern) => pattern.test(question));
 }
 
+export function isMedicationActionQuestion(question: string): boolean {
+  return matchesAnyPattern(question, MEDICATION_PATTERNS);
+}
+
 export function detectIntent(question: string): MiosIntent {
   const normalized = normalizeQuestion(question);
 
@@ -138,7 +162,7 @@ export function detectIntent(question: string): MiosIntent {
     return "experiment";
   }
 
-  if (matchesAnyPattern(question, MEDICATION_PATTERNS)) {
+  if (isMedicationActionQuestion(question)) {
     return "medication";
   }
 
