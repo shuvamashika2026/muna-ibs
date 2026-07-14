@@ -2,6 +2,10 @@ import OpenAI from "openai";
 import { NextResponse } from "next/server";
 import { createClient, type SupabaseClient } from "@supabase/supabase-js";
 import {
+  buildCommunityKnowledgeAiContext,
+  MUNA_AI_COMMUNITY_RULES,
+} from "@/lib/community-knowledge/build-ai-context";
+import {
   classifyFoodItem,
   formatFodmapLevelLabel,
   splitMealText,
@@ -61,6 +65,8 @@ Safety:
 - If the user mentions urgent red flags such as blood in stool, severe pain, fever, dehydration, black stool, fainting, or unexplained weight loss, advise urgent medical care immediately.
 - If symptoms are new, worsening, persistent, or worrying, advise contacting a qualified clinician.
 - End most answers with a brief, gentle reminder that MUNA is educational only and is not a diagnosis.
+
+${MUNA_AI_COMMUNITY_RULES}
 `;
 
 type HealthData = {
@@ -1341,8 +1347,20 @@ export async function POST(request: Request) {
 
     const healthContext = buildHealthContext(healthData);
     const memoryContext = buildPersonalMemoryContext(memoryResult.profile);
-    const redFlagContext = redFlagPattern.test(message)
-      ? "\nUrgent safety context: The user's message may contain confirmed red-flag symptoms. Start by advising urgent medical care immediately. Keep the rest brief and safety-focused."
+    const communityContextResult = await buildCommunityKnowledgeAiContext(message);
+
+    const urgentSafety =
+      redFlagPattern.test(message) || communityContextResult.safetyMatched;
+
+    const redFlagContext = urgentSafety
+      ? "\nUrgent safety context: The user's message may contain confirmed red-flag symptoms. Start by advising urgent medical care immediately. Keep the rest brief and safety-focused. Do not include routine food, supplement, lifestyle or anecdotal community reassurance."
+      : "";
+
+    const communityContextBlock = communityContextResult.text
+      ? `
+Curated community knowledge (anecdotal — not clinical evidence):
+${communityContextResult.text}
+`
       : "";
 
     const conversationContext = history
@@ -1371,7 +1389,7 @@ ${healthContext}
 
 Personal memory profile:
 ${memoryContext}
-
+${communityContextBlock}
 Recent conversation:
 ${conversationContext || "No previous conversation in this session."}
 
