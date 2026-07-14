@@ -1,10 +1,8 @@
 import OpenAI from "openai";
 import { NextResponse } from "next/server";
 import { createClient, type SupabaseClient } from "@supabase/supabase-js";
-import {
-  buildCommunityKnowledgeAiContext,
-  MUNA_AI_COMMUNITY_RULES,
-} from "@/lib/community-knowledge/build-ai-context";
+import { MUNA_AI_COMMUNITY_RULES } from "@/lib/community-knowledge/build-ai-context";
+import { prepareMiosForRoute } from "@/lib/mios/prepare-orchestration";
 import {
   classifyFoodItem,
   formatFodmapLevelLabel,
@@ -1345,23 +1343,35 @@ export async function POST(request: Request) {
       healthData.accessNotes.push(...memoryResult.accessNotes);
     }
 
+    const healthSummary = buildHealthSummary(healthData);
     const healthContext = buildHealthContext(healthData);
     const memoryContext = buildPersonalMemoryContext(memoryResult.profile);
-    const communityContextResult = await buildCommunityKnowledgeAiContext(message);
+    const routeRedFlagMatched = redFlagPattern.test(message);
 
-    const urgentSafety =
-      redFlagPattern.test(message) || communityContextResult.safetyMatched;
+    const miosPreparation = await prepareMiosForRoute({
+      message,
+      supabase,
+      userId: healthData.userId,
+      memoryProfile: memoryResult.profile,
+      healthSummary,
+      routeRedFlagMatched,
+    });
+
+    const urgentSafety = miosPreparation.urgentSafety;
 
     const redFlagContext = urgentSafety
       ? "\nUrgent safety context: The user's message may contain confirmed red-flag symptoms. Start by advising urgent medical care immediately. Keep the rest brief and safety-focused. Do not include routine food, supplement, lifestyle or anecdotal community reassurance."
       : "";
 
-    const communityContextBlock = communityContextResult.text
+    const miosReasoningContext = miosPreparation.reasoningContext
       ? `
-Curated community knowledge (anecdotal — not clinical evidence):
-${communityContextResult.text}
+${miosPreparation.reasoningContext}
 `
       : "";
+
+    const communityContextBlock = miosPreparation.usedMios
+      ? ""
+      : miosPreparation.legacyCommunityContextBlock;
 
     const conversationContext = history
       .map((item) => {
@@ -1389,7 +1399,7 @@ ${healthContext}
 
 Personal memory profile:
 ${memoryContext}
-${communityContextBlock}
+${miosReasoningContext}${communityContextBlock}
 Recent conversation:
 ${conversationContext || "No previous conversation in this session."}
 
