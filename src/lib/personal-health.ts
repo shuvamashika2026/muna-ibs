@@ -1,4 +1,8 @@
-import { createClient, type SupabaseClient } from "@supabase/supabase-js";
+import { type SupabaseClient } from "@supabase/supabase-js";
+import {
+  createSupabaseForRequest as createSupabaseForRequestFromAuth,
+  extractBearerToken,
+} from "@/lib/supabase/request-auth";
 import {
   classifyFoodItem,
   formatFodmapLevelLabel,
@@ -78,25 +82,7 @@ export type HealthSummary = {
 };
 
 export function createSupabaseForRequest(request: Request) {
-  const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL;
-  const supabaseAnonKey =
-    process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY || process.env.NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY;
-
-  if (!supabaseUrl || !supabaseAnonKey) {
-    return null;
-  }
-
-  const authorization = request.headers.get("authorization") || "";
-
-  return createClient(supabaseUrl, supabaseAnonKey, {
-    global: authorization
-      ? {
-          headers: {
-            Authorization: authorization,
-          },
-        }
-      : undefined,
-  });
+  return createSupabaseForRequestFromAuth(request);
 }
 
 async function safeSelect(
@@ -315,7 +301,10 @@ export async function retrieveHealthData(request: Request): Promise<HealthData> 
     };
   }
 
-  const { data: userData, error: userError } = await supabase.auth.getUser();
+  const accessToken = extractBearerToken(request);
+  const { data: userData, error: userError } = accessToken
+    ? await supabase.auth.getUser(accessToken)
+    : await supabase.auth.getUser();
   const userId = userData.user?.id;
 
   if (userError || !userId) {
