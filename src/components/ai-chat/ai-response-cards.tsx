@@ -60,9 +60,10 @@ type ResponseCardProps = {
   accent: string;
   delay: number;
   emergency?: boolean;
+  crisis?: boolean;
 };
 
-function ResponseCard({ title, body, icon: Icon, accent, delay, emergency = false }: ResponseCardProps) {
+function ResponseCard({ title, body, icon: Icon, accent, delay, emergency = false, crisis = false }: ResponseCardProps) {
   if (!body) return null;
 
   return (
@@ -71,12 +72,14 @@ function ResponseCard({ title, body, icon: Icon, accent, delay, emergency = fals
       animate={{ opacity: 1, y: 0 }}
       transition={{ delay }}
       className={
-        emergency
+        crisis
+          ? "rounded-[1.25rem] border-2 border-violet-400 bg-violet-50 p-4 shadow-sm"
+          : emergency
           ? "rounded-[1.25rem] border-2 border-red-300 bg-red-50 p-4 shadow-sm"
           : "rounded-[1.25rem] border border-emerald-100 bg-white p-4 shadow-sm"
       }
-      role={emergency ? "alert" : undefined}
-      aria-live={emergency ? "assertive" : undefined}
+      role={crisis || emergency ? "alert" : undefined}
+      aria-live={crisis || emergency ? "assertive" : undefined}
     >
       <div className="flex items-start gap-3">
         <span
@@ -88,14 +91,14 @@ function ResponseCard({ title, body, icon: Icon, accent, delay, emergency = fals
         <div>
           <p
             className={`text-xs font-black uppercase tracking-wide ${
-              emergency ? "text-red-800" : "text-slate-500"
+              crisis ? "text-violet-900" : emergency ? "text-red-800" : "text-slate-500"
             }`}
           >
             {title}
           </p>
           <p
             className={`mt-2 text-sm font-semibold leading-6 ${
-              emergency ? "text-red-950" : "text-[#0F172A]"
+              crisis ? "text-violet-950" : emergency ? "text-red-950" : "text-[#0F172A]"
             }`}
           >
             {body}
@@ -141,7 +144,13 @@ function iconForCard(template: ResponseTemplate, cardKey: string) {
   }
 }
 
-function accentForCard(template: ResponseTemplate, cardKey: string, emergency: boolean): string {
+function accentForCard(template: ResponseTemplate, cardKey: string, emergency: boolean, crisis = false): string {
+  if (crisis) {
+    if (cardKey === "reach_out_now" || cardKey === "immediate_safety") {
+      return "bg-violet-700 text-white";
+    }
+    return "bg-violet-100 text-violet-900";
+  }
   if (emergency) {
     if (cardKey === "safety_alert" || cardKey === "what_to_do_now") {
       return "bg-red-600 text-white";
@@ -169,6 +178,7 @@ function TemplateCardsView({
   timestamp: string;
   onSpeak: (text: string) => void;
 }) {
+  const isCrisis = parsed.template === "crisis";
   const isEmergency = parsed.template === "emergency";
   const speakText = cardsToSpeakableText(parsed.cards);
 
@@ -178,6 +188,23 @@ function TemplateCardsView({
       animate={{ opacity: 1, y: 0 }}
       className="w-full max-w-xl space-y-3"
     >
+      {isCrisis ? (
+        <div
+          className="rounded-[1.35rem] border-2 border-violet-500 bg-gradient-to-r from-violet-100 to-violet-50 px-4 py-3"
+          role="alert"
+          aria-live="assertive"
+        >
+          <div className="flex items-center gap-2 text-violet-950">
+            <Heart className="h-5 w-5 shrink-0" aria-hidden="true" />
+            <p className="text-sm font-black uppercase tracking-wide">Crisis support response</p>
+          </div>
+          <p className="mt-2 text-sm font-semibold leading-6 text-violet-950">
+            You deserve immediate support from a real person. Please contact local emergency services or a crisis
+            helpline in your area, and reach someone you trust nearby if you can.
+          </p>
+        </div>
+      ) : null}
+
       {isEmergency ? (
         <div
           className="rounded-[1.35rem] border-2 border-red-400 bg-gradient-to-r from-red-100 to-red-50 px-4 py-3"
@@ -219,9 +246,10 @@ function TemplateCardsView({
           title={card.title}
           body={card.content}
           icon={iconForCard(parsed.template, card.key)}
-          accent={accentForCard(parsed.template, card.key, isEmergency)}
+          accent={accentForCard(parsed.template, card.key, isEmergency, isCrisis)}
           delay={0.05 * (index + 1)}
           emergency={isEmergency}
+          crisis={isCrisis}
         />
       ))}
 

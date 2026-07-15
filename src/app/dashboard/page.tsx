@@ -47,7 +47,6 @@ import {
 import type { DailyBrief } from "@/lib/daily-brief";
 import type { Experiment } from "@/lib/experiment-engine";
 import type { ExperimentProgress } from "@/lib/experiment-progress";
-import { generateInsightsFromApi } from "@/lib/insights/api-client";
 
 type DashboardStats = {
   userName: string;
@@ -137,8 +136,6 @@ export default function DashboardPage() {
   const [experimentProgress, setExperimentProgress] = useState<ExperimentProgress | null>(null);
   const [isExperimentLoading, setIsExperimentLoading] = useState(true);
   const [experimentError, setExperimentError] = useState<string | null>(null);
-  const [isInsightTestLoading, setIsInsightTestLoading] = useState(false);
-  const [insightTestStatus, setInsightTestStatus] = useState<string | null>(null);
   const recognitionRef = useRef<SpeechRecognitionInstance | null>(null);
 
   useEffect(() => {
@@ -407,30 +404,6 @@ export default function DashboardPage() {
     recognition.start();
   }
 
-  async function handleTestInsightGeneration() {
-    setIsInsightTestLoading(true);
-    setInsightTestStatus(null);
-
-    const result = await generateInsightsFromApi({
-      force: true,
-      observationWindowDays: 14,
-    });
-
-    if (!result.ok) {
-      setInsightTestStatus(result.message);
-      setIsInsightTestLoading(false);
-      return;
-    }
-
-    console.log("Insight API test response:", result.data);
-
-    const count = result.data.activeInsights.length;
-    setInsightTestStatus(
-      `Success: ${count} active insight${count === 1 ? "" : "s"} returned (${result.data.actionableInsights.length} actionable).`
-    );
-    setIsInsightTestLoading(false);
-  }
-
   return (
     <AppShell title="Dashboard" hidePageHeader showDefaultBottomNav={false}>
       <motion.main
@@ -451,35 +424,6 @@ export default function DashboardPage() {
             error={experimentError}
           />
         </motion.div>
-        <motion.section
-          variants={variants}
-          className="rounded-2xl border-2 border-dashed border-amber-300 bg-amber-50/60 p-4 ring-1 ring-amber-200"
-        >
-          <p className="text-xs font-black uppercase tracking-[0.18em] text-amber-900">
-            Temporary Development Test
-          </p>
-          <p className="mt-2 text-sm font-semibold text-slate-600">
-            Authenticated POST to /api/insights (force=true, 14-day window). Check the browser console for the full
-            response.
-          </p>
-          <button
-            type="button"
-            onClick={handleTestInsightGeneration}
-            disabled={isInsightTestLoading}
-            className="mt-4 inline-flex min-h-11 items-center justify-center rounded-2xl bg-amber-800 px-4 py-2 text-sm font-black text-white transition hover:bg-amber-900 disabled:cursor-not-allowed disabled:opacity-60"
-          >
-            {isInsightTestLoading ? "Generating insights…" : "Test Insight Generation"}
-          </button>
-          {insightTestStatus ? (
-            <p
-              className={`mt-3 text-sm font-semibold ${
-                insightTestStatus.startsWith("Success:") ? "text-emerald-800" : "text-rose-700"
-              }`}
-            >
-              {insightTestStatus}
-            </p>
-          ) : null}
-        </motion.section>
         <TodaysCheckInCard mood={todayMood} onSelectMood={setTodayMood} />
 
         <section className="grid gap-4 xl:grid-cols-[1.45fr_0.55fr]">
@@ -753,61 +697,6 @@ function JourneyStepCard({
   );
 }
 
-function TodaysFocusCard({ focus, stats }: { focus: string; stats: DashboardStats }) {
-  return (
-    <CoachCard icon={Target} eyebrow="Today's Focus" title={focus}>
-      <p className="text-sm font-semibold leading-6 text-slate-600">
-        Start with the signal most likely to support a calmer day: stress {stats.stress}/10, sleep{" "}
-        {stats.sleepHours.toFixed(1)}h, water {stats.waterLiters.toFixed(1)}L.
-      </p>
-    </CoachCard>
-  );
-}
-
-function BrainGutResetCard() {
-  return (
-    <motion.section variants={variants} className="rounded-[2rem] bg-gradient-to-br from-[#0F766E] to-[#10B981] p-5 text-white shadow-[0_22px_60px_rgba(15,118,110,0.25)]">
-      <div className="flex items-center gap-3">
-        <span className="grid h-11 w-11 place-items-center rounded-2xl bg-white/15">
-          <Brain className="h-5 w-5" aria-hidden="true" />
-        </span>
-        <div>
-          <p className="text-xs font-black uppercase tracking-[0.2em] text-emerald-50">Brain-Gut Reset</p>
-          <h2 className="text-2xl font-black">3-minute calm reset</h2>
-        </div>
-      </div>
-      <p className="mt-4 text-sm font-semibold leading-6 text-emerald-50">
-        A gentle framework for breath, focus, body awareness, and reflection.
-      </p>
-      <Link
-        href="/brain-gut-reset"
-        className="mt-5 flex w-full items-center justify-between rounded-2xl bg-white px-4 py-3 text-sm font-black text-[#0F766E]"
-      >
-        Start reset
-        <ArrowRight className="h-5 w-5" aria-hidden="true" />
-      </Link>
-    </motion.section>
-  );
-}
-
-function DailyLessonCard({ lesson }: { lesson: string }) {
-  return (
-    <CoachCard icon={BookOpen} eyebrow="Daily Lesson" title="One thing to remember">
-      <p className="text-sm font-semibold leading-6 text-slate-600">{lesson}</p>
-    </CoachCard>
-  );
-}
-
-function DailyActionCard({ action }: { action: string }) {
-  return (
-    <CoachCard icon={Check} eyebrow="Daily Action" title={action}>
-      <p className="text-sm font-semibold leading-6 text-slate-600">
-        Keep it small and achievable. One completed action is better than a complicated plan.
-      </p>
-    </CoachCard>
-  );
-}
-
 function HealthSnapshotCard({ stats }: { stats: DashboardStats }) {
   const items = [
     { label: "Gut Score", value: `${stats.gutScore}/100`, icon: ShieldCheck },
@@ -834,33 +723,6 @@ function HealthSnapshotCard({ stats }: { stats: DashboardStats }) {
           );
         })}
       </div>
-    </motion.section>
-  );
-}
-
-function CoachCard({
-  icon: Icon,
-  eyebrow,
-  title,
-  children,
-}: {
-  icon: ElementType;
-  eyebrow: string;
-  title: string;
-  children: ReactNode;
-}) {
-  return (
-    <motion.section variants={variants} className="muna-card rounded-[2rem] p-5">
-      <div className="flex items-start gap-3">
-        <span className="grid h-11 w-11 shrink-0 place-items-center rounded-2xl bg-[#D1FAE5] text-[#0F766E]">
-          <Icon className="h-5 w-5" aria-hidden="true" />
-        </span>
-        <div>
-          <p className="text-xs font-black uppercase tracking-[0.18em] text-[#0F766E]">{eyebrow}</p>
-          <h2 className="mt-1 text-xl font-black leading-7 text-[#0F172A]">{title}</h2>
-        </div>
-      </div>
-      <div className="mt-4">{children}</div>
     </motion.section>
   );
 }

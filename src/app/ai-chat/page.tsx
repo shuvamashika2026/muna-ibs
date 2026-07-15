@@ -138,13 +138,15 @@ export default function AiChatPage() {
   const [voiceSupported, setVoiceSupported] = useState<boolean | null>(null);
   const [voiceLanguage, setVoiceLanguage] = useState("en-US");
   const [displayName, setDisplayName] = useState("");
-  const [hasAcceptedMedicalDisclaimer, setHasAcceptedMedicalDisclaimer] = useState(false);
+  const [hasAcceptedMedicalDisclaimer, setHasAcceptedMedicalDisclaimer] = useState(() => {
+    if (typeof window === "undefined") {
+      return false;
+    }
+
+    return localStorage.getItem("munaMedicalDisclaimerAccepted") === "true";
+  });
   const scrollerRef = useRef<HTMLDivElement | null>(null);
   const recognitionRef = useRef<SpeechRecognitionInstance | null>(null);
-
-  useEffect(() => {
-    setHasAcceptedMedicalDisclaimer(localStorage.getItem("munaMedicalDisclaimerAccepted") === "true");
-  }, []);
 
   useEffect(() => {
     async function loadUser() {
@@ -583,7 +585,9 @@ function AssistantReply({
           showAssociationFooter={message.showAssociationFooter}
           suggestedFollowUps={message.followUps}
         />
-        <FollowUpChips suggestions={followUps} onPick={onFollowUp} disabled={disabled} />
+        {message.template !== "crisis" ? (
+          <FollowUpChips suggestions={followUps} onPick={onFollowUp} disabled={disabled} />
+        ) : null}
       </div>
     </div>
   );

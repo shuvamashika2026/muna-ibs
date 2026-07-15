@@ -267,6 +267,44 @@ export function runMiosVerification(): {
         return intent === "bowel_habits" || intent === "symptoms";
       },
     },
+    {
+      id: "O. Hopelessness without self-harm → emotional_support",
+      run: () => detectIntent("I feel hopeless today") === "emotional_support",
+    },
+    {
+      id: "P. Explicit suicide intent → crisis",
+      run: () => detectIntent("I want to die") === "crisis",
+    },
+    {
+      id: "Q. Self-harm intent → crisis",
+      run: () => detectIntent("I might hurt myself tonight") === "crisis",
+    },
+    {
+      id: "R. Accidental overdose with faint → emergency not crisis",
+      run: () => detectIntent("I took too many pills by accident and feel faint") === "emergency",
+    },
+    {
+      id: "S. Intentional overdose → crisis",
+      run: () => detectIntent("I plan to overdose on purpose") === "crisis",
+    },
+    {
+      id: "T. Crisis orchestration uses crisis safety status",
+      run: () => {
+        const result = orchestrateMios({
+          currentQuestion: "I want to die",
+          personalEvidence: [],
+          experimentEvidence: [],
+          verifiedGuidanceEvidence: [],
+          communityEvidence: [],
+          safetyResult: emptySafety(),
+        });
+        return (
+          result.detectedIntent === "crisis" &&
+          result.responsePlan.safetyStatus === "crisis" &&
+          result.responsePlan.suggestedFollowUps.length === 0
+        );
+      },
+    },
   ];
 
   let passed = 0;

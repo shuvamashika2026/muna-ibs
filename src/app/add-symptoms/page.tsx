@@ -4,6 +4,7 @@ import { useEffect, useState } from "react";
 import { AppShell } from "@/components/app-shell";
 import { FormCard, inputClass, labelClass } from "@/components/form-card";
 import { SaveEntryButton } from "@/components/save-entry-button";
+import { buildSymptomInsertPayload } from "@/lib/symptoms/validation";
 
 export default function AddSymptomsPage() {
   const [painLevel, setPainLevel] = useState(3);
@@ -39,33 +40,89 @@ export default function AddSymptomsPage() {
     }
   }, []);
 
+  function buildPayload() {
+    const result = buildSymptomInsertPayload({
+      painLevel,
+      bloatingLevel,
+      gasLevel,
+      stressLevel,
+      energyLevel,
+      mood,
+      nausea,
+      constipation,
+      diarrhea,
+      notes,
+    });
+
+    if (!result.ok) {
+      throw new Error(result.error);
+    }
+
+    return result.payload;
+  }
+
   return (
     <AppShell title="Add symptoms" subtitle="Log your IBS symptoms and stress level for pattern tracking.">
       <FormCard>
         <div className="grid gap-5">
           <label className={labelClass}>
             Pain level: {painLevel}/10
-            <input className="mt-3 w-full accent-emerald-600" type="range" min="0" max="10" value={painLevel} onChange={(e) => setPainLevel(Number(e.target.value))} />
+            <input
+              className="mt-3 w-full accent-emerald-600"
+              type="range"
+              min="0"
+              max="10"
+              value={painLevel}
+              onChange={(e) => setPainLevel(Number(e.target.value))}
+            />
           </label>
 
           <label className={labelClass}>
             Bloating level: {bloatingLevel}/10
-            <input className="mt-3 w-full accent-emerald-600" type="range" min="0" max="10" value={bloatingLevel} onChange={(e) => setBloatingLevel(Number(e.target.value))} />
+            <input
+              className="mt-3 w-full accent-emerald-600"
+              type="range"
+              min="0"
+              max="10"
+              value={bloatingLevel}
+              onChange={(e) => setBloatingLevel(Number(e.target.value))}
+            />
           </label>
 
           <label className={labelClass}>
             Gas level: {gasLevel}/10
-            <input className="mt-3 w-full accent-emerald-600" type="range" min="0" max="10" value={gasLevel} onChange={(e) => setGasLevel(Number(e.target.value))} />
+            <input
+              className="mt-3 w-full accent-emerald-600"
+              type="range"
+              min="0"
+              max="10"
+              value={gasLevel}
+              onChange={(e) => setGasLevel(Number(e.target.value))}
+            />
           </label>
 
           <label className={labelClass}>
             Stress level: {stressLevel}/10
-            <input className="mt-3 w-full accent-sky-600" type="range" min="0" max="10" value={stressLevel} onChange={(e) => setStressLevel(Number(e.target.value))} />
+            <input
+              className="mt-3 w-full accent-sky-600"
+              type="range"
+              min="0"
+              max="10"
+              value={stressLevel}
+              onChange={(e) => setStressLevel(Number(e.target.value))}
+            />
           </label>
 
           <label className={labelClass}>
             Energy level: {energyLevel}/10
-            <input className="mt-3 w-full accent-sky-600" type="range" min="0" max="10" value={energyLevel} onChange={(e) => setEnergyLevel(Number(e.target.value))} />
+            <input
+              className="mt-3 w-full accent-sky-600"
+              type="range"
+              min="0"
+              max="10"
+              value={energyLevel}
+              onChange={(e) => setEnergyLevel(Number(e.target.value))}
+            />
           </label>
 
           <label className={labelClass}>
@@ -86,7 +143,11 @@ export default function AddSymptomsPage() {
             </label>
 
             <label className={labelClass}>
-              <input type="checkbox" checked={constipation} onChange={(e) => setConstipation(e.target.checked)} />
+              <input
+                type="checkbox"
+                checked={constipation}
+                onChange={(e) => setConstipation(e.target.checked)}
+              />
               Constipation
             </label>
 
@@ -98,35 +159,17 @@ export default function AddSymptomsPage() {
 
           <label className={labelClass}>
             Notes
-            <textarea className={inputClass} rows={4} value={notes} onChange={(e) => setNotes(e.target.value)} placeholder="Example: bloating after lunch, mild cramps, stressful day" />
+            <textarea
+              className={inputClass}
+              rows={4}
+              value={notes}
+              onChange={(e) => setNotes(e.target.value)}
+              placeholder="Example: bloating after lunch, mild cramps, stressful day"
+            />
           </label>
         </div>
 
-        <SaveEntryButton
-          table="symptoms"
-          getPayload={() => ({
-            symptoms: [
-              `Pain ${painLevel}/10`,
-              `Bloating ${bloatingLevel}/10`,
-              `Gas ${gasLevel}/10`,
-              nausea && "nausea",
-              constipation && "constipation",
-              diarrhea && "diarrhea",
-            ]
-              .filter(Boolean)
-              .join(", "),
-            severity: Math.max(painLevel, bloatingLevel, gasLevel),
-            stress_level: stressLevel,
-            logged_at: new Date().toISOString(),
-            notes: [
-              notes,
-              `Energy: ${energyLevel}/10`,
-              `Mood: ${mood}`,
-            ]
-              .filter(Boolean)
-              .join("\n"),
-          })}
-        />
+        <SaveEntryButton table="symptoms" getPayload={buildPayload} />
       </FormCard>
     </AppShell>
   );

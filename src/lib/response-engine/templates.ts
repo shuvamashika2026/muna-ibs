@@ -8,6 +8,15 @@ import type {
 } from "@/lib/response-engine/types";
 
 export const RESPONSE_TEMPLATES: Record<ResponseTemplate, ResponseTemplateDefinition> = {
+  crisis: {
+    template: "crisis",
+    cards: [
+      { key: "you_matter", title: "You Matter" },
+      { key: "reach_out_now", title: "Reach Out Now" },
+      { key: "stay_connected", title: "Stay Connected" },
+      { key: "immediate_safety", title: "If You Are in Immediate Danger" },
+    ],
+  },
   emergency: {
     template: "emergency",
     cards: [
@@ -110,6 +119,19 @@ export function getExpectedCardKeys(template: ResponseTemplate): string[] {
 
 function templateBehaviourNotes(template: ResponseTemplate): string[] {
   switch (template) {
+    case "crisis":
+      return [
+        "Acknowledge the person directly and compassionately.",
+        "Encourage immediate contact with local emergency services or a crisis helpline in their area.",
+        "Encourage reaching a trusted person nearby.",
+        "If immediate danger may exist, advise not staying alone.",
+        "You may gently ask whether they are in immediate danger only if the conversation can continue safely.",
+        "Do not use a country-specific crisis phone number.",
+        "No IBS advice, food suggestions, supplements, experiments, lifestyle tips, or community anecdotes.",
+        "No guilt, judgment, or lengthy explanations.",
+        "Never provide self-harm methods, concealment advice, or instructions that could increase harm.",
+        "Return an empty followUps array.",
+      ];
     case "emergency":
       return [
         "Urgent medical assessment is needed today for concerning symptoms.",
@@ -148,7 +170,7 @@ function templateBehaviourNotes(template: ResponseTemplate): string[] {
         "Empathy first.",
         "Do not label supportive suggestions as a possible pattern.",
         "Give one small achievable action.",
-        "Escalate appropriately if self-harm language appears.",
+        "General hopelessness without self-harm wording stays supportive; explicit self-harm or suicide intent uses the crisis template instead.",
       ];
     case "education":
       return [
@@ -190,6 +212,10 @@ export function buildStructuredOutputInstructions(
     "- No empty card content.",
     "- followUps: 1–3 short suggested questions.",
   ];
+
+  if (template === "crisis") {
+    lines[lines.length - 1] = "- followUps: must be an empty array [].";
+  }
 
   if (plan) {
     lines.push(
@@ -363,6 +389,11 @@ export function buildFallbackStructuredOutput(
 }
 
 export function getCardIconKey(template: ResponseTemplate, cardKey: TemplateCardDefinition["key"]): string {
+  if (template === "crisis") {
+    if (cardKey === "you_matter" || cardKey === "stay_connected") return "heart";
+    if (cardKey === "reach_out_now" || cardKey === "immediate_safety") return "alert";
+    return "heart";
+  }
   if (template === "emergency") {
     if (cardKey === "safety_alert") return "alert";
     if (cardKey === "what_to_do_now") return "action";

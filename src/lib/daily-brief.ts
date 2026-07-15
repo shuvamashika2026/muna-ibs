@@ -1,4 +1,4 @@
-import type { ConfidenceLabel, HealthSummary, MemoryEntry, PersonalMemoryProfile } from "@/lib/personal-health";
+import type { HealthSummary, MemoryEntry, PersonalMemoryProfile } from "@/lib/personal-health";
 
 export type DailyBrief = {
   greeting: string;

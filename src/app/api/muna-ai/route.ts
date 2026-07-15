@@ -994,21 +994,6 @@ function normalizeMemoryProfile(value: PersonalMemoryProfile): PersonalMemoryPro
   };
 }
 
-function collectMemoryEntries(profile: PersonalMemoryProfile): MemoryEntry[] {
-  return [
-    ...profile.generalFodmapFoods,
-    ...profile.likelyTriggerFoods,
-    ...profile.userMarkedTriggerFoods,
-    ...profile.toleratedFoods,
-    profile.averageSleep,
-    profile.hydrationHabits,
-    profile.stressTrends,
-    profile.bowelTrends,
-    profile.ibsSubtype,
-    ...profile.userPreferences,
-  ];
-}
-
 function isValidMemoryJson(value: unknown): value is PersonalMemoryProfile {
   if (!value || typeof value !== "object") return false;
 
@@ -1417,6 +1402,7 @@ export async function POST(request: Request) {
     const mdreSelection = buildMdreSelection({
       orchestration: miosPreparation.orchestration,
       urgentSafety: miosPreparation.urgentSafety,
+      crisisSafety: miosPreparation.crisisSafety,
     });
 
     const mdreOutputInstructions = buildStructuredOutputInstructions(
@@ -1425,10 +1411,16 @@ export async function POST(request: Request) {
     );
 
     const urgentSafety = miosPreparation.urgentSafety;
+    const crisisSafety = miosPreparation.crisisSafety;
 
-    const redFlagContext = urgentSafety
-      ? "\nUrgent safety context: The user's message may contain confirmed red-flag symptoms. Start by advising urgent medical care immediately. Keep the rest brief and safety-focused. Do not include routine food, supplement, lifestyle or anecdotal community reassurance."
+    const crisisContext = crisisSafety
+      ? "\nCrisis safety context: The user's message may relate to self-harm or suicide. Respond with direct compassion. Encourage immediate contact with local emergency services or a crisis helpline, reaching a trusted person nearby, and not staying alone if they may be in immediate danger. Do not include IBS, food, medication, lifestyle, or community advice. Do not use a country-specific phone number. Never provide self-harm methods or concealment advice."
       : "";
+
+    const redFlagContext =
+      !crisisSafety && urgentSafety
+        ? "\nUrgent safety context: The user's message may contain confirmed red-flag symptoms. Start by advising urgent medical care immediately. Keep the rest brief and safety-focused. Do not include routine food, supplement, lifestyle or anecdotal community reassurance."
+        : "";
 
     const miosReasoningContext = miosPreparation.reasoningContext
       ? `
@@ -1459,7 +1451,7 @@ ${miosPreparation.reasoningContext}
       .join("\n");
 
     const requestPayload = {
-      instructions: `${systemPrompt}${redFlagContext}${mdreOutputInstructions}`,
+      instructions: `${systemPrompt}${crisisContext}${redFlagContext}${mdreOutputInstructions}`,
       input: `
 Health context:
 ${healthContext}
@@ -1512,11 +1504,22 @@ ${message}
       }
     }
 
+    const isCrisisResponse = mdreSelection.template === "crisis";
     const answer = cardsToAnswerText(structured.cards);
-    const evidenceSummary = buildUserSafeEvidenceSummary(miosPreparation.orchestration);
-    const missingEvidence = buildMissingEvidence(miosPreparation.orchestration);
-    const suggestedFollowUps =
-      structured.followUps.length > 0
+    const evidenceSummary = isCrisisResponse
+      ? {
+          personal: { available: false, label: "Personal logs" },
+          verified: { available: false, label: "Reviewed guidance" },
+          community: { available: false, label: "Community experience" },
+          experiment: { available: false, label: "Experiment" },
+        }
+      : buildUserSafeEvidenceSummary(miosPreparation.orchestration);
+    const missingEvidence = isCrisisResponse
+      ? []
+      : buildMissingEvidence(miosPreparation.orchestration);
+    const suggestedFollowUps = isCrisisResponse
+      ? []
+      : structured.followUps.length > 0
         ? structured.followUps
         : miosPreparation.orchestration?.responsePlan.suggestedFollowUps ?? [];
 

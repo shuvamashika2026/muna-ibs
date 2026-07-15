@@ -44,6 +44,32 @@ function writeStorage(key: string, value: string) {
   }
 }
 
+function readInitialTrackId(): string {
+  if (typeof window === "undefined") {
+    return tracks[0].id;
+  }
+
+  const savedTrack = readStorage(selectedTrackKey);
+  if (savedTrack && tracks.some((track) => track.id === savedTrack)) {
+    return savedTrack;
+  }
+
+  return tracks[0].id;
+}
+
+function readInitialVolume(): number {
+  if (typeof window === "undefined") {
+    return 0.55;
+  }
+
+  const savedVolume = Number(readStorage(volumeKey));
+  if (Number.isFinite(savedVolume) && savedVolume >= 0 && savedVolume <= 1) {
+    return savedVolume;
+  }
+
+  return 0.55;
+}
+
 function formatTime(value: number) {
   if (!Number.isFinite(value) || value <= 0) return "0:00";
 
@@ -98,44 +124,33 @@ function TrackAttributionDetails({ attribution }: { attribution: TrackAttributio
   );
 }
 
-export function MunaSoundSpace() {
-  const [selectedTrackId, setSelectedTrackId] = useState(tracks[0].id);
-  const [volume, setVolume] = useState(0.55);
+type TrackPlaybackPanelProps = {
+  track: SoundTrack;
+  selectedTrackId: string;
+  onSelectTrack: (trackId: string) => void;
+  volume: number;
+  onVolumeChange: (volume: number) => void;
+};
+
+function TrackPlaybackPanel({
+  track,
+  selectedTrackId,
+  onSelectTrack,
+  volume,
+  onVolumeChange,
+}: TrackPlaybackPanelProps) {
   const [isPlaying, setIsPlaying] = useState(false);
   const [isUnavailable, setIsUnavailable] = useState(false);
   const [currentTime, setCurrentTime] = useState(0);
   const [duration, setDuration] = useState(0);
   const audioRef = useRef<HTMLAudioElement | null>(null);
 
-  const selectedTrack = useMemo(
-    () => tracks.find((track) => track.id === selectedTrackId) || tracks[0],
-    [selectedTrackId]
-  );
-
   const controlsDisabled = isUnavailable;
 
   useEffect(() => {
-    const savedTrack = readStorage(selectedTrackKey);
-    const savedVolume = Number(readStorage(volumeKey));
-
-    if (savedTrack && tracks.some((track) => track.id === savedTrack)) {
-      setSelectedTrackId(savedTrack);
-    }
-
-    if (Number.isFinite(savedVolume) && savedVolume >= 0 && savedVolume <= 1) {
-      setVolume(savedVolume);
-    }
-  }, []);
-
-  useEffect(() => {
-    const audio = new Audio(selectedTrack.src);
+    const audio = new Audio(track.src);
     audio.preload = "metadata";
-    audio.volume = volume;
     audioRef.current = audio;
-    setIsPlaying(false);
-    setIsUnavailable(false);
-    setCurrentTime(0);
-    setDuration(0);
 
     const handleTimeUpdate = () => setCurrentTime(audio.currentTime);
     const handleLoadedMetadata = () => {
@@ -163,23 +178,15 @@ export function MunaSoundSpace() {
       audio.removeEventListener("loadedmetadata", handleLoadedMetadata);
       audio.removeEventListener("ended", handleEnded);
       audio.removeEventListener("error", handleError);
+      audioRef.current = null;
     };
-  }, [selectedTrack.src]);
+  }, [track.src]);
 
   useEffect(() => {
     if (audioRef.current) {
       audioRef.current.volume = volume;
     }
-
-    writeStorage(volumeKey, String(volume));
   }, [volume]);
-
-  function selectTrack(trackId: string) {
-    audioRef.current?.pause();
-    setIsPlaying(false);
-    setSelectedTrackId(trackId);
-    writeStorage(selectedTrackKey, trackId);
-  }
 
   async function togglePlayback() {
     if (controlsDisabled) return;
@@ -230,31 +237,18 @@ export function MunaSoundSpace() {
   const progressPercent = duration ? Math.min(100, Math.round((currentTime / duration) * 100)) : 0;
 
   return (
-    <section className="mx-auto mt-6 w-full max-w-5xl rounded-[2rem] bg-white/80 p-5 shadow-[0_18px_60px_rgba(15,118,110,0.10)] ring-1 ring-emerald-100 backdrop-blur md:p-6">
-      <div className="flex items-start gap-4">
-        <span className="grid h-12 w-12 shrink-0 place-items-center rounded-2xl bg-[#ECFDF5] text-[#0F766E]">
-          <Waves className="h-6 w-6" aria-hidden="true" />
-        </span>
-        <div>
-          <h2 className="text-2xl font-black tracking-normal text-[#0F172A]">MUNA Sound Space</h2>
-          <p className="mt-2 max-w-2xl text-sm font-semibold leading-6 text-slate-600">
-            Optional calming audio for relaxation and awareness. This is a wellbeing feature, not
-            medical treatment.
-          </p>
-        </div>
-      </div>
-
+    <>
       <div className="mt-5 grid gap-4 lg:grid-cols-[1fr_1.15fr] lg:items-end">
         <label className="grid gap-2 text-sm font-black uppercase tracking-wide text-slate-500">
           Track
           <select
             value={selectedTrackId}
-            onChange={(event) => selectTrack(event.target.value)}
+            onChange={(event) => onSelectTrack(event.target.value)}
             className="min-h-12 rounded-2xl border border-emerald-100 bg-white px-4 py-3 text-base font-black normal-case tracking-normal text-[#0F172A] outline-none focus:border-[#0F766E] focus:ring-4 focus:ring-emerald-100"
           >
-            {tracks.map((track) => (
-              <option key={track.id} value={track.id}>
-                {track.title}
+            {tracks.map((trackOption) => (
+              <option key={trackOption.id} value={trackOption.id}>
+                {trackOption.title}
               </option>
             ))}
           </select>
@@ -267,7 +261,7 @@ export function MunaSoundSpace() {
         ) : (
           <div className="grid gap-3">
             <div className="flex items-center justify-between gap-3 text-sm font-black text-slate-500">
-              <span>{selectedTrack.title}</span>
+              <span>{track.title}</span>
               <span>
                 {formatTime(currentTime)} / {formatTime(duration)}
               </span>
@@ -292,9 +286,7 @@ export function MunaSoundSpace() {
         )}
       </div>
 
-      {hasAttribution(selectedTrack.attribution) ? (
-        <TrackAttributionDetails attribution={selectedTrack.attribution} />
-      ) : null}
+      {hasAttribution(track.attribution) ? <TrackAttributionDetails attribution={track.attribution} /> : null}
 
       <div className="mt-5 grid gap-4 sm:grid-cols-[auto_auto_1fr] sm:items-center">
         {controlsDisabled ? null : (
@@ -329,13 +321,58 @@ export function MunaSoundSpace() {
             max="1"
             step="0.01"
             value={volume}
-            onChange={(event) => setVolume(Number(event.target.value))}
+            onChange={(event) => onVolumeChange(Number(event.target.value))}
             className="w-full accent-[#0F766E]"
             aria-label="Volume"
           />
           <span className="min-w-10 text-right">{Math.round(volume * 100)}%</span>
         </label>
       </div>
+    </>
+  );
+}
+
+export function MunaSoundSpace() {
+  const [selectedTrackId, setSelectedTrackId] = useState(readInitialTrackId);
+  const [volume, setVolume] = useState(readInitialVolume);
+
+  const selectedTrack = useMemo(
+    () => tracks.find((track) => track.id === selectedTrackId) || tracks[0],
+    [selectedTrackId]
+  );
+
+  useEffect(() => {
+    writeStorage(volumeKey, String(volume));
+  }, [volume]);
+
+  function selectTrack(trackId: string) {
+    setSelectedTrackId(trackId);
+    writeStorage(selectedTrackKey, trackId);
+  }
+
+  return (
+    <section className="mx-auto mt-6 w-full max-w-5xl rounded-[2rem] bg-white/80 p-5 shadow-[0_18px_60px_rgba(15,118,110,0.10)] ring-1 ring-emerald-100 backdrop-blur md:p-6">
+      <div className="flex items-start gap-4">
+        <span className="grid h-12 w-12 shrink-0 place-items-center rounded-2xl bg-[#ECFDF5] text-[#0F766E]">
+          <Waves className="h-6 w-6" aria-hidden="true" />
+        </span>
+        <div>
+          <h2 className="text-2xl font-black tracking-normal text-[#0F172A]">MUNA Sound Space</h2>
+          <p className="mt-2 max-w-2xl text-sm font-semibold leading-6 text-slate-600">
+            Optional calming audio for relaxation and awareness. This is a wellbeing feature, not
+            medical treatment.
+          </p>
+        </div>
+      </div>
+
+      <TrackPlaybackPanel
+        key={selectedTrack.src}
+        track={selectedTrack}
+        selectedTrackId={selectedTrackId}
+        onSelectTrack={selectTrack}
+        volume={volume}
+        onVolumeChange={setVolume}
+      />
     </section>
   );
 }

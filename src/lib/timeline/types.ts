@@ -144,7 +144,8 @@ export function createTimelineEvent(
     ? new Date(generatedAtMs + ttlMs).toISOString()
     : new Date(Date.now() + ttlMs).toISOString();
 
-  const { ttlMs: _ttl, ...rest } = partial;
+  const rest = { ...partial };
+  delete rest.ttlMs;
 
   return {
     ...rest,

@@ -1,4 +1,5 @@
 export type MiosIntent =
+  | "crisis"
   | "emergency"
   | "food"
   | "symptoms"
@@ -22,7 +23,7 @@ export type MiosConfidence = "higher" | "moderate" | "limited" | "unavailable";
 
 export type MiosRelevance = "high" | "moderate" | "low";
 
-export type MiosSafetyStatus = "none" | "matched" | "critical";
+export type MiosSafetyStatus = "none" | "matched" | "critical" | "crisis";
 
 export type MiosProhibitedClaim =
   | "diagnosis"

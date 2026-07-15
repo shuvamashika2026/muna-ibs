@@ -14,10 +14,12 @@ import { fetchVerifiedGuidanceEvidenceForMios } from "@/lib/mios/adapters/verifi
 import { buildMiosReasoningContext } from "@/lib/mios/build-reasoning-context";
 import { orchestrateMios } from "@/lib/mios/orchestrator";
 import type { MiosOrchestratorInput, MiosOrchestratorResult } from "@/lib/mios/types";
+import { isCrisisIntent } from "@/lib/mios/intent";
 
 export type MiosRoutePreparation = {
   usedMios: boolean;
   urgentSafety: boolean;
+  crisisSafety: boolean;
   reasoningContext: string;
   legacyCommunityContextBlock: string;
   orchestration: MiosOrchestratorResult | null;
@@ -35,11 +37,14 @@ export async function prepareMiosForRoute(input: {
   const communityRetrieval = await retrieveCommunityKnowledge({ queryText: input.message });
   const legacyCommunity = buildCommunityKnowledgeAiContextFromResult(communityRetrieval);
 
+  const crisisSafety = isCrisisIntent(input.message);
+
   const urgentSafety =
-    input.routeRedFlagMatched || legacyCommunity.safetyMatched || communityRetrieval.safetyMatched;
+    !crisisSafety &&
+    (input.routeRedFlagMatched || legacyCommunity.safetyMatched || communityRetrieval.safetyMatched);
 
   const legacyCommunityContextBlock =
-    legacyCommunity.text && !urgentSafety
+    legacyCommunity.text && !urgentSafety && !crisisSafety
       ? `
 Curated community knowledge (anecdotal — not clinical evidence):
 ${legacyCommunity.text}
@@ -75,6 +80,7 @@ ${legacyCommunity.text}
     return {
       usedMios: true,
       urgentSafety,
+      crisisSafety,
       reasoningContext,
       legacyCommunityContextBlock: "",
       orchestration,
@@ -83,6 +89,7 @@ ${legacyCommunity.text}
     return {
       usedMios: false,
       urgentSafety,
+      crisisSafety,
       reasoningContext: "",
       legacyCommunityContextBlock,
       orchestration: null,

@@ -1,4 +1,5 @@
-import type { MiosIntent } from "@/lib/mios/types";
+import type { MiosIntent } from "./types";
+import { isAccidentalOverdoseQuestion, matchesCrisisLanguage } from "./crisis";
 
 const EMERGENCY_PHRASES = [
   "blood in stool",
@@ -154,8 +155,12 @@ export function detectIntent(question: string): MiosIntent {
     return "general";
   }
 
-  if (matchesEmergencyPhrase(normalized)) {
+  if (isAccidentalOverdoseQuestion(question) || matchesEmergencyPhrase(normalized)) {
     return "emergency";
+  }
+
+  if (matchesCrisisLanguage(question)) {
+    return "crisis";
   }
 
   if (matchesAnyPattern(question, EXPERIMENT_PATTERNS)) {
@@ -199,4 +204,8 @@ export function detectIntent(question: string): MiosIntent {
 
 export function isEmergencyIntent(question: string): boolean {
   return detectIntent(question) === "emergency";
+}
+
+export function isCrisisIntent(question: string): boolean {
+  return detectIntent(question) === "crisis";
 }

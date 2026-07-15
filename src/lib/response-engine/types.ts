@@ -1,6 +1,7 @@
 import type { MiosConfidence, MiosIntent, MiosSafetyStatus } from "@/lib/mios/types";
 
 export type ResponseTemplate =
+  | "crisis"
   | "emergency"
   | "medication"
   | "food"

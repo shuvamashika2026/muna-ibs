@@ -13,25 +13,40 @@ import {
   validateExperimentProposal,
   type AdherenceChoice,
 } from "@/lib/experiment-safety";
-import { createSupabaseForRequest } from "@/lib/personal-health";
+import type { SupabaseClient } from "@supabase/supabase-js";
+import {
+  authenticateSupabaseRequest,
+  mapAuthFailureToStatus,
+} from "@/lib/supabase/request-auth";
 
 type AuthContext = {
-  supabase: NonNullable<ReturnType<typeof createSupabaseForRequest>>;
+  supabase: SupabaseClient;
   userId: string;
 };
 
 async function requireAuth(request: Request): Promise<AuthContext | NextResponse> {
-  const supabase = createSupabaseForRequest(request);
-  if (!supabase) {
-    return NextResponse.json({ error: "Supabase is not configured." }, { status: 500 });
+  const auth = await authenticateSupabaseRequest(request);
+  if (!auth.ok) {
+    const status = mapAuthFailureToStatus(auth.reason);
+    const message =
+      auth.reason === "not_configured"
+        ? "Supabase is not configured."
+        : "Authentication required.";
+    return NextResponse.json({ error: message }, { status });
   }
 
-  const { data, error } = await supabase.auth.getUser();
-  if (error || !data.user?.id) {
-    return NextResponse.json({ error: "Authentication required." }, { status: 401 });
+  return { supabase: auth.supabase, userId: auth.userId };
+}
+
+function rejectClientSuppliedUserId(body: Record<string, unknown>): NextResponse | null {
+  if (body.user_id !== undefined || body.userId !== undefined) {
+    return NextResponse.json(
+      { error: "Client-supplied user identifiers are not accepted." },
+      { status: 400 }
+    );
   }
 
-  return { supabase, userId: data.user.id };
+  return null;
 }
 
 function mapExperimentRow(row: Record<string, unknown>): Experiment {
@@ -178,6 +193,11 @@ export async function POST(request: Request) {
     body = (await request.json()) as Record<string, unknown>;
   } catch {
     return NextResponse.json({ error: "Invalid request body." }, { status: 400 });
+  }
+
+  const clientUserIdRejection = rejectClientSuppliedUserId(body);
+  if (clientUserIdRejection) {
+    return clientUserIdRejection;
   }
 
   const action = typeof body.action === "string" ? body.action : "create";

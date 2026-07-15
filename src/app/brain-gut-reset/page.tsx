@@ -31,22 +31,16 @@ const feelingOptions = [
   { label: "Still Tense", icon: "😔" },
 ] as const;
 
-export default function BrainGutResetPage() {
-  const [stepIndex, setStepIndex] = useState(0);
-  const [secondsLeft, setSecondsLeft] = useState(0);
-  const [timerComplete, setTimerComplete] = useState(true);
-  const [feeling, setFeeling] = useState<Feeling | null>(null);
-  const [notes, setNotes] = useState("");
-  const [savedResponse, setSavedResponse] = useState<{ feeling: Feeling; notes: string } | null>(null);
-
-  const step = steps[stepIndex];
-  const progress = Math.round(((stepIndex + 1) / steps.length) * 100);
-  const isTimedStep = step.duration > 0;
-
-  useEffect(() => {
-    setSecondsLeft(step.duration);
-    setTimerComplete(step.duration === 0);
-  }, [step.duration, step.id]);
+function StepTimerState({
+  duration,
+  children,
+}: {
+  duration: number;
+  children: (state: { timerLabel: string; timerComplete: boolean }) => ReactNode;
+}) {
+  const [secondsLeft, setSecondsLeft] = useState(duration);
+  const [timerComplete, setTimerComplete] = useState(duration === 0);
+  const isTimedStep = duration > 0;
 
   useEffect(() => {
     if (!isTimedStep || timerComplete) return;
@@ -64,13 +58,25 @@ export default function BrainGutResetPage() {
     }, 1000);
 
     return () => window.clearInterval(timer);
-  }, [isTimedStep, timerComplete, step.id]);
+  }, [isTimedStep, timerComplete, duration]);
 
   const timerLabel = useMemo(() => {
     const minutes = Math.floor(secondsLeft / 60);
     const seconds = secondsLeft % 60;
     return `${minutes}:${seconds.toString().padStart(2, "0")}`;
   }, [secondsLeft]);
+
+  return <>{children({ timerLabel, timerComplete })}</>;
+}
+
+export default function BrainGutResetPage() {
+  const [stepIndex, setStepIndex] = useState(0);
+  const [feeling, setFeeling] = useState<Feeling | null>(null);
+  const [notes, setNotes] = useState("");
+  const [savedResponse, setSavedResponse] = useState<{ feeling: Feeling; notes: string } | null>(null);
+
+  const step = steps[stepIndex];
+  const progress = Math.round(((stepIndex + 1) / steps.length) * 100);
 
   function goNext() {
     setStepIndex((current) => Math.min(steps.length - 1, current + 1));
@@ -86,6 +92,8 @@ export default function BrainGutResetPage() {
   }
 
   return (
+    <StepTimerState key={step.id} duration={step.duration}>
+      {({ timerLabel, timerComplete }) => (
     <AppShell title="Brain-Gut Reset" hidePageHeader showDefaultBottomNav={false}>
       <main className="relative -mx-4 -my-6 min-h-[calc(100vh-5rem)] overflow-hidden bg-gradient-to-b from-white via-[#ECFDF5] to-white px-4 py-5 md:-my-10 md:px-6">
         <div className="pointer-events-none absolute left-1/2 top-10 h-72 w-72 -translate-x-1/2 rounded-full bg-[#D1FAE5] blur-3xl" />
@@ -174,6 +182,8 @@ export default function BrainGutResetPage() {
         </section>
       </main>
     </AppShell>
+      )}
+    </StepTimerState>
   );
 }
 

@@ -12,13 +12,19 @@ type SaveEntryButtonProps = {
 
 export function SaveEntryButton({ table, getPayload, label = "Save entry" }: SaveEntryButtonProps) {
   const [message, setMessage] = useState("");
+  const [messageTone, setMessageTone] = useState<"success" | "error">("success");
   const [isSaving, setIsSaving] = useState(false);
 
   async function handleSave() {
+    if (isSaving) {
+      return;
+    }
+
     setIsSaving(true);
     setMessage("");
 
     if (!isSupabaseConfigured || !supabase) {
+      setMessageTone("error");
       setMessage("Supabase is not connected yet. Add your environment variables, then try again.");
       setIsSaving(false);
       return;
@@ -26,18 +32,37 @@ export function SaveEntryButton({ table, getPayload, label = "Save entry" }: Sav
 
     const { data: userData } = await supabase.auth.getUser();
 
-if (!userData.user) {
-  setMessage("Please sign in first.");
-  setIsSaving(false);
-  window.location.href = "/login";
-  return;
-}
+    if (!userData.user) {
+      setMessageTone("error");
+      setMessage("Please sign in first.");
+      setIsSaving(false);
+      window.location.href = "/login";
+      return;
+    }
 
-const { error } = await supabase.from(table).insert({
-  ...getPayload(),
-  user_id: userData.user.id,
-});
-    setMessage(error ? error.message : "Saved.");
+    let payload: Record<string, unknown>;
+    try {
+      payload = getPayload();
+    } catch (error) {
+      setMessageTone("error");
+      setMessage(error instanceof Error ? error.message : "Could not prepare this entry.");
+      setIsSaving(false);
+      return;
+    }
+
+    const { error } = await supabase.from(table).insert({
+      ...payload,
+      user_id: userData.user.id,
+    });
+
+    if (error) {
+      setMessageTone("error");
+      setMessage(error.message);
+    } else {
+      setMessageTone("success");
+      setMessage("Saved.");
+    }
+
     setIsSaving(false);
   }
 
@@ -46,7 +71,14 @@ const { error } = await supabase.from(table).insert({
       <button type="button" onClick={handleSave} className={primaryButtonClass} disabled={isSaving}>
         {isSaving ? "Saving..." : label}
       </button>
-      {message ? <p className="mt-3 text-sm font-medium text-slate-600">{message}</p> : null}
+      {message ? (
+        <p
+          className={`mt-3 text-sm font-medium ${messageTone === "success" ? "text-slate-600" : "text-rose-700"}`}
+          role={messageTone === "error" ? "alert" : "status"}
+        >
+          {message}
+        </p>
+      ) : null}
     </div>
   );
 }

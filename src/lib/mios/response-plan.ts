@@ -11,6 +11,9 @@ import type {
 import { MIOS_DEFAULT_PROHIBITED_CLAIMS } from "@/lib/mios/types";
 
 function resolveSafetyStatus(intent: MiosIntent, safetyResult: MiosSafetyResult): MiosSafetyStatus {
+  if (intent === "crisis") {
+    return "crisis";
+  }
   if (intent === "emergency" || safetyResult.safetyMatched) {
     return safetyResult.safetyAction === "urgent_medical_assessment" ? "critical" : "matched";
   }
@@ -19,6 +22,8 @@ function resolveSafetyStatus(intent: MiosIntent, safetyResult: MiosSafetyResult)
 
 function directAnswerGoalForIntent(intent: MiosIntent): string {
   switch (intent) {
+    case "crisis":
+      return "Respond with compassionate crisis support, encourage immediate contact with local emergency or crisis services, and avoid any IBS or routine health advice.";
     case "emergency":
       return "Advise urgent or prompt medical assessment without routine lifestyle advice.";
     case "food":
@@ -43,6 +48,10 @@ function directAnswerGoalForIntent(intent: MiosIntent): string {
 }
 
 function oneNextStepForIntent(intent: MiosIntent, safetyStatus: MiosSafetyStatus): string {
+  if (safetyStatus === "crisis" || intent === "crisis") {
+    return "Contact local emergency services, a crisis helpline, or a trusted person right now.";
+  }
+
   if (safetyStatus !== "none") {
     return "Seek urgent or prompt medical review for the symptoms described.";
   }
@@ -83,6 +92,10 @@ function buildEvidenceSummary(merged: MiosMergedEvidence): string {
 }
 
 function suggestedFollowUps(intent: MiosIntent): string[] {
+  if (intent === "crisis") {
+    return [];
+  }
+
   switch (intent) {
     case "food":
       return ["Would you like to review recent meals linked to this food?"];
@@ -113,6 +126,7 @@ export function buildResponsePlan(input: {
     safetyStatus,
     directAnswerGoal: directAnswerGoalForIntent(input.intent),
     acknowledgementNeeded:
+      input.intent === "crisis" ||
       input.intent === "emotional_support" ||
       input.intent === "symptoms" ||
       safetyStatus !== "none",
@@ -122,9 +136,11 @@ export function buildResponsePlan(input: {
     confidence,
     oneNextStep: oneNextStepForIntent(input.intent, safetyStatus),
     safetyMessage:
-      safetyStatus === "none"
-        ? null
-        : "This may need urgent or prompt medical assessment. Do not rely on anecdotal reports or routine self-care alone.",
+      safetyStatus === "crisis"
+        ? "This message may relate to self-harm or suicide. Prioritise immediate human support and crisis services."
+        : safetyStatus === "none"
+          ? null
+          : "This may need urgent or prompt medical assessment. Do not rely on anecdotal reports or routine self-care alone.",
     prohibitedClaims: input.prohibitedClaims ?? MIOS_DEFAULT_PROHIBITED_CLAIMS,
     suggestedFollowUps: suggestedFollowUps(input.intent),
     experiencesVaryNote: hasConflict ? "Experiences vary." : null,

@@ -14,6 +14,7 @@ import {
   buildUserSafeEvidenceSummary,
   mapMiosConfidenceToDisplayLabel,
   mustUseEmergencyTemplate,
+  mustUseCrisisTemplate,
   selectResponseTemplate,
   shouldShowAssociationFooter,
   shouldShowConfidenceBadge,
@@ -250,6 +251,120 @@ export function runMdreVerification(): {
           mustUseEmergencyTemplate({ intent: "general", safetyStatus: "none", urgentSafety: true }),
         ];
         return cases.every(Boolean);
+      },
+    },
+    {
+      id: "N. Hopelessness → emotional_support template",
+      run: () => {
+        const selection = buildMdreSelection({
+          orchestration: orchestrateMios({
+            currentQuestion: "I feel hopeless today",
+            personalEvidence: [],
+            experimentEvidence: [],
+            verifiedGuidanceEvidence: [],
+            communityEvidence: [],
+            safetyResult: { safetyMatched: false, safetyAction: null, matchedThemes: [] },
+          }),
+          urgentSafety: false,
+        });
+        return selection.template === "emotional_support" && selection.intent === "emotional_support";
+      },
+    },
+    {
+      id: "O. I want to die → crisis template and status",
+      run: () => {
+        const selection = buildMdreSelection({
+          orchestration: orchestrateMios({
+            currentQuestion: "I want to die",
+            personalEvidence: [],
+            experimentEvidence: [],
+            verifiedGuidanceEvidence: [],
+            communityEvidence: [],
+            safetyResult: { safetyMatched: false, safetyAction: null, matchedThemes: [] },
+          }),
+          urgentSafety: false,
+        });
+        return (
+          selection.template === "crisis" &&
+          selection.intent === "crisis" &&
+          selection.safetyStatus === "crisis" &&
+          !selection.showConfidenceBadge
+        );
+      },
+    },
+    {
+      id: "P. Self-harm wording → crisis template",
+      run: () =>
+        selectResponseTemplate({ intent: "crisis", safetyStatus: "crisis" }) === "crisis" &&
+        mustUseCrisisTemplate({ intent: "crisis", safetyStatus: "crisis" }),
+    },
+    {
+      id: "Q. Accidental overdose remains emergency",
+      run: () => {
+        const selection = buildMdreSelection({
+          orchestration: orchestrateMios({
+            currentQuestion: "I took too many pills by accident and feel faint",
+            personalEvidence: [],
+            experimentEvidence: [],
+            verifiedGuidanceEvidence: [],
+            communityEvidence: [],
+            safetyResult: { safetyMatched: false, safetyAction: null, matchedThemes: [] },
+          }),
+          urgentSafety: false,
+        });
+        return selection.template === "emergency" && selection.intent === "emergency";
+      },
+    },
+    {
+      id: "R. Crisis mode excludes routine IBS instructions",
+      run: () => {
+        const instructions = buildStructuredOutputInstructions(
+          "crisis",
+          orchestrateMios({
+            currentQuestion: "I might hurt myself tonight",
+            personalEvidence: [],
+            experimentEvidence: [],
+            verifiedGuidanceEvidence: [],
+            communityEvidence: [],
+            safetyResult: { safetyMatched: false, safetyAction: null, matchedThemes: [] },
+          })
+        );
+        return (
+          instructions.includes("No IBS advice") &&
+          instructions.includes("empty array") &&
+          !shouldShowAssociationFooter("crisis", "crisis") &&
+          !shouldShowConfidenceBadge("crisis")
+        );
+      },
+    },
+    {
+      id: "S. Crisis evidence summary stays empty",
+      run: () => {
+        const orchestration = orchestrateMios({
+          currentQuestion: "I want to die",
+          personalEvidence: [
+            item({
+              id: "p1",
+              source: "personal_history",
+              title: "Logs",
+              summary: "Should not surface",
+              confidence: "moderate",
+              relevance: "high",
+              limitations: [],
+              isAvailable: true,
+            }),
+          ],
+          experimentEvidence: [],
+          verifiedGuidanceEvidence: [],
+          communityEvidence: [],
+          safetyResult: { safetyMatched: false, safetyAction: null, matchedThemes: [] },
+        });
+        const summary = buildUserSafeEvidenceSummary(orchestration);
+        return (
+          !summary.personal.available &&
+          !summary.community.available &&
+          buildMissingEvidence(orchestration).length === 0
+        );
       },
     },
     {

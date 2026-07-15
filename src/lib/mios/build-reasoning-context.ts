@@ -64,7 +64,13 @@ export function buildMiosReasoningContext(
     ...(options?.insufficientPersonalData
       ? ['Insufficient-data wording required: "I don\'t have enough personal information yet to identify a reliable pattern."']
       : []),
-    ...(plan.safetyStatus !== "none"
+    ...(plan.safetyStatus === "crisis"
+      ? [
+          "Crisis mode: prioritise compassionate human support and local emergency or crisis services.",
+          "Do not include IBS advice, food, supplements, experiments, lifestyle tips, or community anecdotes.",
+        ]
+      : []),
+    ...(plan.safetyStatus !== "none" && plan.safetyStatus !== "crisis"
       ? ["Emergency mode: do not include routine food, supplement, experiment, lifestyle or anecdotal reassurance."]
       : []),
     "",

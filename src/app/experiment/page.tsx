@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useEffect, useState, type FormEvent } from "react";
+import { useEffect, useState, type FormEvent } from "react";
 import { AppShell } from "@/components/app-shell";
 import { inputClass, labelClass, primaryButtonClass } from "@/components/form-card";
 import { supabase } from "@/lib/supabase";
@@ -42,48 +42,59 @@ export default function ExperimentPage() {
   const [stressLevel, setStressLevel] = useState(3);
   const [checkinNotes, setCheckinNotes] = useState("");
 
-  const loadBundle = useCallback(async () => {
-    setIsLoading(true);
-    setError(null);
-
-    if (!supabase) {
-      setError("Supabase is not configured.");
-      setIsLoading(false);
-      return;
-    }
-
-    const { data: userData } = await supabase.auth.getUser();
-    if (!userData.user) {
-      window.location.href = "/login";
-      return;
-    }
-
-    const token = await getAccessToken();
-    if (!token) {
-      setError("Authentication required.");
-      setIsLoading(false);
-      return;
-    }
-
-    const response = await fetch("/api/experiments", {
-      headers: { Authorization: `Bearer ${token}` },
-    });
-
-    if (!response.ok) {
-      const payload = (await response.json().catch(() => ({}))) as { error?: string };
-      setError(payload.error ?? "Could not load experiment data.");
-      setIsLoading(false);
-      return;
-    }
-
-    const payload = (await response.json()) as ExperimentBundle;
-    setBundle(payload);
-    setIsLoading(false);
-  }, []);
-
   useEffect(() => {
-    loadBundle();
-  }, [loadBundle]);
+    let cancelled = false;
+
+    async function initialize() {
+      if (!supabase) {
+        if (!cancelled) {
+          setError("Supabase is not configured.");
+          setIsLoading(false);
+        }
+        return;
+      }
+
+      const { data: userData } = await supabase.auth.getUser();
+      if (cancelled) return;
+
+      if (!userData.user) {
+        window.location.href = "/login";
+        return;
+      }
+
+      const token = await getAccessToken();
+      if (cancelled) return;
+
+      if (!token) {
+        setError("Authentication required.");
+        setIsLoading(false);
+        return;
+      }
+
+      const response = await fetch("/api/experiments", {
+        headers: { Authorization: `Bearer ${token}` },
+      });
+
+      if (cancelled) return;
+
+      if (!response.ok) {
+        const payload = (await response.json().catch(() => ({}))) as { error?: string };
+        setError(payload.error ?? "Could not load experiment data.");
+        setIsLoading(false);
+        return;
+      }
+
+      const payload = (await response.json()) as ExperimentBundle;
+      setBundle(payload);
+      setIsLoading(false);
+    }
+
+    void initialize();
+
+    return () => {
+      cancelled = true;
+    };
+  }, []);
 
   async function postAction(body: Record<string, unknown>) {
     setIsSubmitting(true);

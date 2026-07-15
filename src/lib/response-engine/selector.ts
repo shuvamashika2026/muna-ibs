@@ -6,11 +6,28 @@ function isUrgentSafety(safetyStatus: MiosSafetyStatus): boolean {
   return safetyStatus === "critical" || safetyStatus === "matched";
 }
 
+export function mustUseCrisisTemplate(input: {
+  intent: MdreSelection["intent"];
+  safetyStatus: MiosSafetyStatus;
+  crisisSafety?: boolean;
+}): boolean {
+  return (
+    Boolean(input.crisisSafety) ||
+    input.safetyStatus === "crisis" ||
+    input.intent === "crisis"
+  );
+}
+
 export function mustUseEmergencyTemplate(input: {
   intent: MdreSelection["intent"];
   safetyStatus: MiosSafetyStatus;
   urgentSafety?: boolean;
+  crisisSafety?: boolean;
 }): boolean {
+  if (mustUseCrisisTemplate(input)) {
+    return false;
+  }
+
   return (
     Boolean(input.urgentSafety) ||
     isUrgentSafety(input.safetyStatus) ||
@@ -22,12 +39,18 @@ export function selectResponseTemplate(input: {
   intent: MdreSelection["intent"];
   safetyStatus: MiosSafetyStatus;
   urgentSafety?: boolean;
+  crisisSafety?: boolean;
 }): ResponseTemplate {
+  if (mustUseCrisisTemplate(input)) {
+    return "crisis";
+  }
+
   if (mustUseEmergencyTemplate(input)) {
     return "emergency";
   }
 
   const intentToTemplate: Record<MdreSelection["intent"], ResponseTemplate> = {
+    crisis: "crisis",
     emergency: "emergency",
     medication: "medication",
     food: "food",
@@ -44,10 +67,16 @@ export function selectResponseTemplate(input: {
 }
 
 export function shouldShowConfidenceBadge(template: ResponseTemplate): boolean {
+  if (template === "crisis" || template === "emergency") {
+    return false;
+  }
   return BADGE_TEMPLATES.includes(template);
 }
 
 export function shouldShowAssociationFooter(template: ResponseTemplate, safetyStatus: MiosSafetyStatus): boolean {
+  if (safetyStatus === "crisis" || template === "crisis") {
+    return false;
+  }
   if (isUrgentSafety(safetyStatus) || template === "emergency") {
     return false;
   }
@@ -57,7 +86,23 @@ export function shouldShowAssociationFooter(template: ResponseTemplate, safetySt
 export function buildMdreSelection(input: {
   orchestration: MiosOrchestratorResult | null;
   urgentSafety: boolean;
+  crisisSafety?: boolean;
 }): MdreSelection {
+  const crisisDetected =
+    Boolean(input.crisisSafety) ||
+    input.orchestration?.detectedIntent === "crisis" ||
+    input.orchestration?.responsePlan.safetyStatus === "crisis";
+
+  if (crisisDetected) {
+    return {
+      intent: "crisis",
+      template: "crisis",
+      safetyStatus: "crisis",
+      confidence: "unavailable",
+      showConfidenceBadge: false,
+    };
+  }
+
   const intent = input.urgentSafety
     ? "emergency"
     : input.orchestration?.detectedIntent ?? "general";
@@ -72,13 +117,18 @@ export function buildMdreSelection(input: {
     intent,
     safetyStatus,
     urgentSafety: input.urgentSafety,
+    crisisSafety: input.crisisSafety,
   });
 
   return {
-    intent: template === "emergency" ? "emergency" : intent,
+    intent: template === "crisis" ? "crisis" : template === "emergency" ? "emergency" : intent,
     template,
     safetyStatus:
-      template === "emergency" && safetyStatus === "none" ? "critical" : safetyStatus,
+      template === "crisis"
+        ? "crisis"
+        : template === "emergency" && safetyStatus === "none"
+          ? "critical"
+          : safetyStatus,
     confidence,
     showConfidenceBadge: shouldShowConfidenceBadge(template),
   };
@@ -87,6 +137,17 @@ export function buildMdreSelection(input: {
 export function buildUserSafeEvidenceSummary(
   orchestration: MiosOrchestratorResult | null
 ): UserSafeEvidenceSummary {
+  const empty: UserSafeEvidenceSummary = {
+    personal: { available: false, label: "Personal logs" },
+    verified: { available: false, label: "Reviewed guidance" },
+    community: { available: false, label: "Community experience" },
+    experiment: { available: false, label: "Experiment" },
+  };
+
+  if (orchestration?.detectedIntent === "crisis" || orchestration?.responsePlan.safetyStatus === "crisis") {
+    return empty;
+  }
+
   const items = orchestration?.mergedEvidence.items ?? [];
 
   const personalItems = items.filter((item) => item.source === "personal_history");
@@ -128,8 +189,8 @@ export function buildUserSafeEvidenceSummary(
 }
 
 export function buildMissingEvidence(orchestration: MiosOrchestratorResult | null): string[] {
-  if (!orchestration) {
-    return ["personal_history", "verified_guidance", "community", "experiment"];
+  if (!orchestration || orchestration.detectedIntent === "crisis") {
+    return [];
   }
 
   const unavailable = new Set(orchestration.mergedEvidence.unavailableSources);
