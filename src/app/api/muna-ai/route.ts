@@ -1,3 +1,4 @@
+const DAILY_AI_LIMIT = 7
 import OpenAI from "openai";
 import { NextResponse } from "next/server";
 import { createClient, type SupabaseClient } from "@supabase/supabase-js";
@@ -1379,7 +1380,61 @@ export async function POST(request: Request) {
     }
 
     const healthData = await retrieveHealthData(request);
-    const memoryResult = await resolvePersonalMemory(supabase, healthData, preloadedMemory);
+
+// The AI feature is available only to authenticated users.
+if (!supabase || !healthData.userId) {
+  return NextResponse.json(
+    {
+      error: "Please sign in to use MUNA AI.",
+      code: "AUTHENTICATION_REQUIRED",
+    },
+    { status: 401 }
+  );
+}
+
+// Check and record this user's daily AI request.
+const { data: quotaData, error: quotaError } = await supabase.rpc(
+  "use_daily_ai_request",
+  {
+    request_limit: DAILY_AI_LIMIT,
+  }
+);
+
+if (quotaError) {
+  console.error("AI quota check failed:", quotaError);
+
+  return NextResponse.json(
+    {
+      error: "Unable to check your AI usage. Please try again.",
+      code: "AI_QUOTA_CHECK_FAILED",
+    },
+    { status: 500 }
+  );
+}
+
+const quota = quotaData?.[0];
+
+if (!quota?.allowed) {
+  return NextResponse.json(
+    {
+      error:
+        "You have reached your daily AI limit. Please try again tomorrow.",
+      code: "DAILY_AI_LIMIT_REACHED",
+      usage: {
+        used: quota?.used ?? DAILY_AI_LIMIT,
+        limit: DAILY_AI_LIMIT,
+        remaining: 0,
+      },
+    },
+    { status: 429 }
+  );
+}
+
+const memoryResult = await resolvePersonalMemory(
+  supabase,
+  healthData,
+  preloadedMemory
+);
 
     if (memoryResult.accessNotes.length) {
       healthData.accessNotes.push(...memoryResult.accessNotes);
@@ -1532,6 +1587,11 @@ ${message}
 
     return NextResponse.json({
       answer,
+      usage: {
+        used: quota.used,
+        limit: DAILY_AI_LIMIT,
+        remaining: quota.remaining,
+      },
       intent: mdreSelection.intent,
       template: mdreSelection.template,
       safetyStatus: mdreSelection.safetyStatus,
