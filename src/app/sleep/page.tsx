@@ -4,6 +4,8 @@ import { useEffect, useState } from "react";
 import { AppShell } from "@/components/app-shell";
 import { FormCard, inputClass, labelClass } from "@/components/form-card";
 import { SaveEntryButton } from "@/components/save-entry-button";
+import { supabase } from "@/lib/supabase";
+import { readUserScopedDraft, removeUserScopedDraft } from "@/lib/auth/user-scoped-storage";
 
 export default function SleepPage() {
   const [hours, setHours] = useState(7.5);
@@ -11,20 +13,28 @@ export default function SleepPage() {
   const [notes, setNotes] = useState("");
 
   useEffect(() => {
-    const draft = localStorage.getItem("munaVoiceSleepDraft");
-    if (!draft) return;
+    async function loadVoiceDraft() {
+      if (!supabase) return;
 
-    try {
-      const parsed = JSON.parse(draft) as { note?: string };
-      const text = parsed.note || "";
-      const hourMatch = text.match(/(?:slept|sleep)\s*(\d+(?:\.\d+)?)/i);
-      if (hourMatch?.[1]) {
-        setHours(Math.min(12, Math.max(0, Number(hourMatch[1]))));
+      const { data } = await supabase.auth.getUser();
+      const userId = data.user?.id;
+      const draft = readUserScopedDraft(userId, "munaVoiceSleepDraft");
+      if (!draft) return;
+
+      try {
+        const parsed = JSON.parse(draft) as { note?: string };
+        const text = parsed.note || "";
+        const hourMatch = text.match(/(?:slept|sleep)\s*(\d+(?:\.\d+)?)/i);
+        if (hourMatch?.[1]) {
+          setHours(Math.min(12, Math.max(0, Number(hourMatch[1]))));
+        }
+        setNotes(`Voice draft: ${text}`);
+      } finally {
+        removeUserScopedDraft(userId, "munaVoiceSleepDraft");
       }
-      setNotes(`Voice draft: ${text}`);
-    } finally {
-      localStorage.removeItem("munaVoiceSleepDraft");
     }
+
+    void loadVoiceDraft();
   }, []);
 
   return (

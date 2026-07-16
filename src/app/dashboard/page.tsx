@@ -36,6 +36,19 @@ import {
 } from "lucide-react";
 import { calculateRisk } from "@/lib/risk";
 import { supabase } from "@/lib/supabase";
+import { RequireUserSession } from "@/lib/auth/require-user-session";
+import {
+  createEmptyDashboardStats,
+  createEmptyTrendData,
+  type DashboardStats,
+  type DashboardTrendPoint,
+} from "@/lib/dashboard/default-stats";
+import {
+  formatFlareRiskDisplay,
+  formatGutScoreDisplay,
+  hasEnoughScoreData,
+} from "@/lib/dashboard/score-eligibility";
+import { writeUserScopedDraft } from "@/lib/auth/user-scoped-storage";
 import { AppShell } from "@/components/app-shell";
 import { FoodIntelligenceCard } from "@/components/dashboard/FoodIntelligenceCard";
 import { DailyBriefCard } from "@/components/dashboard/DailyBriefCard";
@@ -47,19 +60,6 @@ import {
 import type { DailyBrief } from "@/lib/daily-brief";
 import type { Experiment } from "@/lib/experiment-engine";
 import type { ExperimentProgress } from "@/lib/experiment-progress";
-
-type DashboardStats = {
-  userName: string;
-  gutScore: number;
-  flareRisk: "Low" | "Medium" | "High";
-  confidence: number;
-  pain: number;
-  bloating: number;
-  stress: number;
-  sleepHours: number;
-  waterLiters: number;
-  bristolType: number;
-};
 
 type SpeechRecognitionInstance = {
   continuous: boolean;
@@ -86,22 +86,6 @@ const variants: Variants = {
   visible: { opacity: 1, y: 0, transition: { duration: 0.46, ease: "easeOut" } },
 };
 
-const trendData = [
-  { day: "Mon", gut: 72, stress: 6, sleep: 6.4, water: 1.5, bristol: 3 },
-  { day: "Tue", gut: 76, stress: 5, sleep: 6.9, water: 1.7, bristol: 4 },
-  { day: "Wed", gut: 80, stress: 4, sleep: 7.2, water: 1.9, bristol: 4 },
-  { day: "Thu", gut: 84, stress: 3, sleep: 7.5, water: 2.1, bristol: 4 },
-  { day: "Fri", gut: 82, stress: 4, sleep: 7.1, water: 1.8, bristol: 5 },
-  { day: "Sat", gut: 86, stress: 3, sleep: 7.8, water: 2.2, bristol: 4 },
-  { day: "Sun", gut: 84, stress: 3, sleep: 7.5, water: 2.1, bristol: 4 },
-];
-
-const badges = [
-  { label: "3-day streak", detail: "Consistent logs", icon: Award },
-  { label: "Hydration lift", detail: "+18% this week", icon: Droplets },
-  { label: "Sleep stable", detail: "7h+ average", icon: Moon },
-];
-
 function greeting() {
   const hour = new Date().getHours();
   if (hour < 12) return "Good Morning";
@@ -110,18 +94,31 @@ function greeting() {
 }
 
 export default function DashboardPage() {
-  const [stats, setStats] = useState<DashboardStats>({
-    userName: "Shuvam",
-    gutScore: 84,
-    flareRisk: "Low",
-    confidence: 89,
-    pain: 2,
-    bloating: 3,
-    stress: 3,
-    sleepHours: 7.5,
-    waterLiters: 2.1,
-    bristolType: 4,
-  });
+  return (
+    <RequireUserSession
+      loading={
+        <AppShell title="Dashboard" hidePageHeader showDefaultBottomNav={false}>
+          <p className="text-sm font-semibold text-slate-600">Loading your dashboard…</p>
+        </AppShell>
+      }
+    >
+      {({ userId, generation }) => (
+        <DashboardPageLoaded key={generation} userId={userId} generation={generation} />
+      )}
+    </RequireUserSession>
+  );
+}
+
+function DashboardPageLoaded({
+  userId,
+  generation,
+}: {
+  userId: string;
+  generation: number;
+}) {
+  const [stats, setStats] = useState<DashboardStats>(() => createEmptyDashboardStats());
+  const [trendData, setTrendData] = useState<DashboardTrendPoint[]>(() => createEmptyTrendData());
+  const [hasPersonalLogs, setHasPersonalLogs] = useState(false);
   const [isListening, setIsListening] = useState(false);
   const [journeyStarted, setJourneyStarted] = useState(false);
   const [completedJourneySteps, setCompletedJourneySteps] = useState<string[]>([]);
@@ -139,6 +136,8 @@ export default function DashboardPage() {
   const recognitionRef = useRef<SpeechRecognitionInstance | null>(null);
 
   useEffect(() => {
+    const fetchGeneration = generation;
+
     async function loadDashboard() {
       if (!supabase) {
         setIsFoodInsightLoading(false);
@@ -150,16 +149,15 @@ export default function DashboardPage() {
       const { data: userData } = await supabase.auth.getUser();
       const user = userData.user;
 
-      if (!user) {
-        setIsFoodInsightLoading(false);
-        setIsDailyBriefLoading(false);
-        setIsExperimentLoading(false);
-        window.location.href = "/login";
+      if (!user || user.id !== userId || fetchGeneration !== generation) {
         return;
       }
 
+      setStats(createEmptyDashboardStats());
+      setHasPersonalLogs(false);
+
       const userName =
-        user.user_metadata?.full_name || user.user_metadata?.name || user.email?.split("@")[0] || "Shuvam";
+        user.user_metadata?.full_name || user.user_metadata?.name || user.email?.split("@")[0] || "there";
 
       const today = new Date().toISOString().slice(0, 10);
 
@@ -206,6 +204,10 @@ export default function DashboardPage() {
         .eq("user_id", user.id)
         .order("logged_at", { ascending: false })
         .limit(20);
+
+      if (fetchGeneration !== generation) {
+        return;
+      }
 
       setFoodInsight(buildDashboardFoodInsight(meals ?? [], symptoms ?? []));
       setIsFoodInsightLoading(false);
@@ -265,36 +267,78 @@ export default function DashboardPage() {
 
       setIsExperimentLoading(false);
 
-      const pain = Number(latestSymptom?.severity ?? 2);
-      const bloating = Number(latestSymptom?.severity ?? 3);
-      const stress = Number(latestSymptom?.stress_level ?? 3);
-      const bristolType = Number(latestBowel?.bristol_type ?? 4);
-      const sleepHours = Number(latestSleep?.hours ?? 7.5);
-      const waterTotal =
-        waterLogs?.reduce((sum, row) => sum + Number(row.cups || 0) * 250, 0) || 2100;
+      const hasLogs = Boolean(
+        latestSymptom || latestBowel || latestSleep || (meals?.length ?? 0) > 0 || (waterLogs?.length ?? 0) > 0
+      );
+      setHasPersonalLogs(hasLogs);
+
+      const pain = latestSymptom?.severity != null ? Number(latestSymptom.severity) : 0;
+      const bloating =
+        latestSymptom?.bloating_level != null
+          ? Number(latestSymptom.bloating_level)
+          : latestSymptom?.severity != null
+            ? Number(latestSymptom.severity)
+            : 0;
+      const stress = latestSymptom?.stress_level != null ? Number(latestSymptom.stress_level) : 0;
+      const bristolType = latestBowel?.bristol_type != null ? Number(latestBowel.bristol_type) : 0;
+      const sleepHours = latestSleep?.hours != null ? Number(latestSleep.hours) : 0;
+      const waterTotal = waterLogs?.reduce((sum, row) => sum + Number(row.cups || 0) * 250, 0) ?? 0;
       const waterLiters = waterTotal / 1000;
 
-      const risk = calculateRisk({
-        painLevel: pain,
-        stressLevel: stress,
-        waterToday: waterTotal,
-        waterGoal: 2400,
-        sleepHours,
-        hasHighFodmapMeal: false,
-        bristolType,
+      const confidenceBaseDays = new Set<string>();
+      for (const row of symptoms ?? []) {
+        if (typeof row.logged_at === "string") {
+          confidenceBaseDays.add(row.logged_at.slice(0, 10));
+        }
+      }
+      for (const row of meals ?? []) {
+        if (typeof row.eaten_at === "string") {
+          confidenceBaseDays.add(row.eaten_at.slice(0, 10));
+        }
+      }
+
+      const enoughScoreData = hasEnoughScoreData({
+        meals: meals?.length ?? 0,
+        symptoms: symptoms?.length ?? 0,
+        bowelMovements: latestBowel ? 1 : 0,
       });
 
-      let gutScore = 100 - pain * 4 - bloating * 3 - Math.max(0, stress - 3) * 4;
-      if (sleepHours < 7) gutScore -= 8;
-      if (waterLiters < 1.8) gutScore -= 6;
-      if (![3, 4, 5].includes(bristolType)) gutScore -= 8;
-      gutScore = Math.max(0, Math.min(100, Math.round(gutScore)));
+      let gutScore: number | null = null;
+      let flareRisk: DashboardStats["flareRisk"] = null;
+      let confidence: number | null = null;
+
+      if (enoughScoreData) {
+        const risk = calculateRisk({
+          painLevel: pain,
+          stressLevel: stress,
+          waterToday: waterTotal,
+          waterGoal: 2400,
+          sleepHours: sleepHours > 0 ? sleepHours : 7.5,
+          hasHighFodmapMeal: false,
+          bristolType: bristolType > 0 ? bristolType : 4,
+        });
+
+        let calculatedGutScore = 100 - pain * 4 - bloating * 3 - Math.max(0, stress - 3) * 4;
+        if (sleepHours > 0 && sleepHours < 7) calculatedGutScore -= 8;
+        if (waterLiters > 0 && waterLiters < 1.8) calculatedGutScore -= 6;
+        if (bristolType > 0 && ![3, 4, 5].includes(bristolType)) calculatedGutScore -= 8;
+        gutScore = Math.max(0, Math.min(100, Math.round(calculatedGutScore)));
+        flareRisk = risk.score >= 55 ? "High" : risk.score >= 30 ? "Medium" : "Low";
+        confidence = Math.min(
+          100,
+          Math.max(0, confidenceBaseDays.size * 12 + (meals?.length ?? 0) + (symptoms?.length ?? 0))
+        );
+      }
+
+      if (fetchGeneration !== generation) {
+        return;
+      }
 
       setStats({
         userName,
         gutScore,
-        flareRisk: risk.score >= 55 ? "High" : risk.score >= 30 ? "Medium" : "Low",
-        confidence: 89,
+        flareRisk,
+        confidence,
         pain,
         bloating,
         stress,
@@ -302,12 +346,16 @@ export default function DashboardPage() {
         waterLiters,
         bristolType,
       });
+      setTrendData(createEmptyTrendData());
     }
 
-    loadDashboard();
-  }, []);
+    void loadDashboard();
+  }, [generation, userId]);
 
-  const brainGutBalance = Math.round((stats.gutScore + (10 - stats.stress) * 10 + stats.sleepHours * 10) / 3);
+  const brainGutBalance =
+    stats.gutScore === null
+      ? null
+      : Math.round((stats.gutScore + (10 - stats.stress) * 10 + stats.sleepHours * 10) / 3);
   const actionPlan = [
     `Drink ${(2.4 - stats.waterLiters > 0 ? 2.4 - stats.waterLiters : 0.3).toFixed(1)}L more water`,
     "10-minute calming breathwork",
@@ -397,7 +445,7 @@ export default function DashboardPage() {
     recognition.onend = () => {
       setIsListening(false);
       if (transcript) {
-        localStorage.setItem("munaDashboardVoicePrompt", transcript);
+        writeUserScopedDraft(userId, "munaDashboardVoicePrompt", transcript);
       }
       window.location.href = "/ai-chat";
     };
@@ -471,10 +519,15 @@ export default function DashboardPage() {
           <ActionPlanCard items={actionPlan} />
         </section>
 
-        <WeeklyProgressSection isOpen={isWeeklyProgressOpen} onToggle={() => setIsWeeklyProgressOpen((value) => !value)} />
+        <WeeklyProgressSection
+          isOpen={isWeeklyProgressOpen}
+          onToggle={() => setIsWeeklyProgressOpen((value) => !value)}
+          trendData={trendData}
+          hasPersonalLogs={hasPersonalLogs}
+        />
 
         <section className="grid gap-4 lg:grid-cols-[0.9fr_1.1fr]">
-          <AchievementBadges />
+          <AchievementBadges hasPersonalLogs={hasPersonalLogs} />
           <CommunityInsights items={communityMetrics} />
         </section>
       </motion.main>
@@ -500,8 +553,8 @@ function CoachingHero({ stats }: { stats: DashboardStats }) {
           </p>
         </div>
         <div className="grid grid-cols-2 gap-2 rounded-[1.5rem] bg-[#ECFDF5] p-3">
-          <HeroMetric label="Gut score" value={`${stats.gutScore}/100`} />
-          <HeroMetric label="Risk" value={stats.flareRisk} />
+          <HeroMetric label="Gut score" value={formatGutScoreDisplay(stats.gutScore)} />
+          <HeroMetric label="Risk" value={formatFlareRiskDisplay(stats.flareRisk)} />
           <HeroMetric label="Sleep" value={`${stats.sleepHours.toFixed(1)}h`} />
           <HeroMetric label="Stress" value={`${stats.stress}/10`} />
         </div>
@@ -699,8 +752,8 @@ function JourneyStepCard({
 
 function HealthSnapshotCard({ stats }: { stats: DashboardStats }) {
   const items = [
-    { label: "Gut Score", value: `${stats.gutScore}/100`, icon: ShieldCheck },
-    { label: "Flare Risk", value: stats.flareRisk, icon: Sparkles },
+    { label: "Gut Score", value: formatGutScoreDisplay(stats.gutScore), icon: ShieldCheck },
+    { label: "Flare Risk", value: formatFlareRiskDisplay(stats.flareRisk), icon: Sparkles },
     { label: "Stress", value: `${stats.stress}/10`, icon: Brain },
     { label: "Sleep", value: `${stats.sleepHours.toFixed(1)}h`, icon: Moon },
     { label: "Water", value: `${stats.waterLiters.toFixed(1)}L`, icon: Droplets },
@@ -727,7 +780,24 @@ function HealthSnapshotCard({ stats }: { stats: DashboardStats }) {
   );
 }
 
-function GutScoreCard({ score }: { score: number }) {
+function GutScoreCard({ score }: { score: number | null }) {
+  if (score === null) {
+    return (
+      <motion.section variants={variants} className="muna-card rounded-[2rem] p-6">
+        <div className="flex items-start justify-between gap-4">
+          <div>
+            <p className="text-sm font-black uppercase tracking-wide text-[#0F766E]">Gut Health Score</p>
+            <p className="mt-3 text-2xl font-black leading-snug text-slate-600">Not enough data</p>
+          </div>
+          <ShieldCheck className="h-9 w-9 text-[#10B981]" aria-hidden="true" />
+        </div>
+        <p className="mt-4 text-sm font-semibold leading-6 text-slate-600">
+          Log at least one meal, one symptom entry, and one bowel movement to unlock your gut score.
+        </p>
+      </motion.section>
+    );
+  }
+
   return (
     <motion.section variants={variants} className="muna-card rounded-[2rem] p-6">
       <div className="flex items-start justify-between gap-4">
@@ -753,7 +823,27 @@ function GutScoreCard({ score }: { score: number }) {
   );
 }
 
-function FlareRiskGauge({ risk, confidence }: { risk: string; confidence: number }) {
+function FlareRiskGauge({
+  risk,
+  confidence,
+}: {
+  risk: DashboardStats["flareRisk"];
+  confidence: number | null;
+}) {
+  if (risk === null) {
+    return (
+      <motion.section variants={variants} className="muna-card rounded-[2rem] p-6">
+        <p className="text-sm font-black uppercase tracking-wide text-[#0F766E]">Today&apos;s Flare Risk</p>
+        <div className="mt-6 rounded-[1.5rem] bg-[#ECFDF5] p-5 text-center">
+          <p className="text-2xl font-black text-slate-600">Not enough data</p>
+          <p className="mt-3 text-sm font-semibold leading-6 text-slate-600">
+            Log at least one meal, one symptom entry, and one bowel movement to unlock flare risk.
+          </p>
+        </div>
+      </motion.section>
+    );
+  }
+
   const riskValue = risk === "High" ? 76 : risk === "Medium" ? 54 : 22;
 
   return (
@@ -780,7 +870,9 @@ function FlareRiskGauge({ risk, confidence }: { risk: string; confidence: number
           <div className="absolute inset-0 grid place-items-center text-center">
             <div>
               <p className="text-3xl font-black text-[#0F172A]">{risk}</p>
-              <p className="text-xs font-black text-[#10B981]">{confidence}% confidence</p>
+              <p className="text-xs font-black text-[#10B981]">
+                {confidence === null ? "Not enough data" : `${confidence}% confidence`}
+              </p>
             </div>
           </div>
         </div>
@@ -789,7 +881,22 @@ function FlareRiskGauge({ risk, confidence }: { risk: string; confidence: number
   );
 }
 
-function BrainGutBalance({ value }: { value: number }) {
+function BrainGutBalance({ value }: { value: number | null }) {
+  if (value === null) {
+    return (
+      <motion.section variants={variants} className="muna-card rounded-[2rem] p-6">
+        <div className="flex items-center justify-between">
+          <p className="text-sm font-black uppercase tracking-wide text-[#0F766E]">Brain-Gut Balance</p>
+          <Brain className="h-8 w-8 text-[#10B981]" aria-hidden="true" />
+        </div>
+        <p className="mt-5 text-2xl font-black text-slate-600">Not enough data</p>
+        <p className="mt-3 text-sm font-semibold leading-6 text-slate-600">
+          Your balance score appears after enough meals, symptoms, and bowel logs are available.
+        </p>
+      </motion.section>
+    );
+  }
+
   return (
     <motion.section variants={variants} className="muna-card rounded-[2rem] p-6">
       <div className="flex items-center justify-between">
@@ -916,7 +1023,17 @@ function ActionPlanCard({ items }: { items: string[] }) {
   );
 }
 
-function WeeklyProgressSection({ isOpen, onToggle }: { isOpen: boolean; onToggle: () => void }) {
+function WeeklyProgressSection({
+  isOpen,
+  onToggle,
+  trendData,
+  hasPersonalLogs,
+}: {
+  isOpen: boolean;
+  onToggle: () => void;
+  trendData: DashboardTrendPoint[];
+  hasPersonalLogs: boolean;
+}) {
   return (
     <motion.section variants={variants} className="muna-card rounded-[2rem] p-5 md:p-6">
       <button
@@ -936,12 +1053,18 @@ function WeeklyProgressSection({ isOpen, onToggle }: { isOpen: boolean; onToggle
           <ArrowRight className={`h-5 w-5 transition ${isOpen ? "rotate-90" : ""}`} aria-hidden="true" />
         </span>
       </button>
-      {isOpen ? <WeeklyTrends /> : null}
+      {isOpen ? <WeeklyTrends trendData={trendData} hasPersonalLogs={hasPersonalLogs} /> : null}
     </motion.section>
   );
 }
 
-function WeeklyTrends() {
+function WeeklyTrends({
+  trendData,
+  hasPersonalLogs,
+}: {
+  trendData: DashboardTrendPoint[];
+  hasPersonalLogs: boolean;
+}) {
   return (
     <div className="mt-6">
       <div className="flex flex-col gap-2 sm:flex-row sm:items-end sm:justify-between">
@@ -950,56 +1073,76 @@ function WeeklyTrends() {
           <h2 className="text-2xl font-black text-[#0F172A]">Gut score, stress, sleep, water and Bristol</h2>
         </div>
       </div>
-      <div className="mt-6 grid gap-4 xl:grid-cols-[1.1fr_0.9fr]">
-        <div className="h-72 rounded-[1.5rem] bg-[#ECFDF5] p-4">
-          <ResponsiveContainer width="100%" height="100%">
-            <LineChart data={trendData}>
-              <CartesianGrid stroke="#D1FAE5" vertical={false} />
-              <XAxis dataKey="day" axisLine={false} tickLine={false} />
-              <YAxis hide />
-              <Tooltip />
-              <Line type="monotone" dataKey="gut" stroke="#0F766E" strokeWidth={4} dot={false} />
-              <Line type="monotone" dataKey="sleep" stroke="#8B5CF6" strokeWidth={3} dot={false} />
-              <Line type="monotone" dataKey="water" stroke="#0EA5E9" strokeWidth={3} dot={false} />
-            </LineChart>
-          </ResponsiveContainer>
+      {!hasPersonalLogs || trendData.length === 0 ? (
+        <p className="mt-6 rounded-[1.5rem] bg-[#ECFDF5] p-5 text-sm font-semibold leading-6 text-slate-600">
+          Log meals, symptoms, sleep, and water to unlock your personal weekly trends.
+        </p>
+      ) : (
+        <div className="mt-6 grid gap-4 xl:grid-cols-[1.1fr_0.9fr]">
+          <div className="h-72 rounded-[1.5rem] bg-[#ECFDF5] p-4">
+            <ResponsiveContainer width="100%" height="100%">
+              <LineChart data={trendData}>
+                <CartesianGrid stroke="#D1FAE5" vertical={false} />
+                <XAxis dataKey="day" axisLine={false} tickLine={false} />
+                <YAxis hide />
+                <Tooltip />
+                <Line type="monotone" dataKey="gut" stroke="#0F766E" strokeWidth={4} dot={false} />
+                <Line type="monotone" dataKey="sleep" stroke="#8B5CF6" strokeWidth={3} dot={false} />
+                <Line type="monotone" dataKey="water" stroke="#0EA5E9" strokeWidth={3} dot={false} />
+              </LineChart>
+            </ResponsiveContainer>
+          </div>
+          <div className="h-72 rounded-[1.5rem] bg-white/70 p-4">
+            <ResponsiveContainer width="100%" height="100%">
+              <BarChart data={trendData}>
+                <XAxis dataKey="day" axisLine={false} tickLine={false} />
+                <YAxis hide />
+                <Tooltip />
+                <Bar dataKey="stress" fill="#F59E0B" radius={[10, 10, 0, 0]} />
+                <Bar dataKey="bristol" fill="#10B981" radius={[10, 10, 0, 0]} />
+              </BarChart>
+            </ResponsiveContainer>
+          </div>
         </div>
-        <div className="h-72 rounded-[1.5rem] bg-white/70 p-4">
-          <ResponsiveContainer width="100%" height="100%">
-            <BarChart data={trendData}>
-              <XAxis dataKey="day" axisLine={false} tickLine={false} />
-              <YAxis hide />
-              <Tooltip />
-              <Bar dataKey="stress" fill="#F59E0B" radius={[10, 10, 0, 0]} />
-              <Bar dataKey="bristol" fill="#10B981" radius={[10, 10, 0, 0]} />
-            </BarChart>
-          </ResponsiveContainer>
-        </div>
-      </div>
+      )}
     </div>
   );
 }
 
-function AchievementBadges() {
+function AchievementBadges({ hasPersonalLogs }: { hasPersonalLogs: boolean }) {
+  const badges = hasPersonalLogs
+    ? [
+        { label: "Logging started", detail: "Your personal records are building", icon: Award },
+        { label: "Hydration tracking", detail: "Water logs contribute to your dashboard", icon: Droplets },
+        { label: "Sleep awareness", detail: "Sleep entries help MUNA learn your rhythm", icon: Moon },
+      ]
+    : [];
+
   return (
     <motion.section variants={variants} className="muna-card rounded-[2rem] p-6">
       <p className="text-sm font-black uppercase tracking-wide text-[#0F766E]">Achievement Badges</p>
-      <div className="mt-5 grid gap-3">
-        {badges.map((badge) => {
-          const Icon = badge.icon;
-          return (
-            <div key={badge.label} className="flex items-center gap-3 rounded-[1.25rem] bg-[#ECFDF5] p-4">
-              <span className="grid h-11 w-11 place-items-center rounded-2xl bg-white text-[#0F766E] shadow-sm">
-                <Icon className="h-5 w-5" aria-hidden="true" />
-              </span>
-              <div>
-                <p className="font-black text-[#0F172A]">{badge.label}</p>
-                <p className="text-sm font-semibold text-slate-500">{badge.detail}</p>
+      {badges.length === 0 ? (
+        <p className="mt-5 rounded-[1.25rem] bg-[#ECFDF5] p-4 text-sm font-semibold leading-6 text-slate-600">
+          Start logging to unlock personal achievement badges.
+        </p>
+      ) : (
+        <div className="mt-5 grid gap-3">
+          {badges.map((badge) => {
+            const Icon = badge.icon;
+            return (
+              <div key={badge.label} className="flex items-center gap-3 rounded-[1.25rem] bg-[#ECFDF5] p-4">
+                <span className="grid h-11 w-11 place-items-center rounded-2xl bg-white text-[#0F766E] shadow-sm">
+                  <Icon className="h-5 w-5" aria-hidden="true" />
+                </span>
+                <div>
+                  <p className="font-black text-[#0F172A]">{badge.label}</p>
+                  <p className="text-sm font-semibold text-slate-500">{badge.detail}</p>
+                </div>
               </div>
-            </div>
-          );
-        })}
-      </div>
+            );
+          })}
+        </div>
+      )}
     </motion.section>
   );
 }

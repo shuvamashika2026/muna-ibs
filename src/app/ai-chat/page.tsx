@@ -20,6 +20,12 @@ import { buildFollowUpSuggestions, type ConfidenceLevel } from "@/components/ai-
 import type { MiosSafetyStatus } from "@/lib/mios/types";
 import type { ResponseTemplate, StructuredResponseCard, UserSafeEvidenceSummary } from "@/lib/response-engine/types";
 import { supabase } from "@/lib/supabase";
+import { RequireUserSession } from "@/lib/auth/require-user-session";
+import {
+  readUserScopedDraft,
+  removeUserScopedDraft,
+  writeUserScopedDraft,
+} from "@/lib/auth/user-scoped-storage";
 
 type ChatMessage = {
   role: "user" | "assistant";
@@ -130,6 +136,28 @@ function getDisplayName(metadata: Record<string, unknown> | undefined, email?: s
 }
 
 export default function AiChatPage() {
+  return (
+    <RequireUserSession
+      loading={
+        <AppShell title="MUNA AI" hidePageHeader showDefaultBottomNav={false}>
+          <p className="px-4 py-8 text-sm font-semibold text-slate-600">Loading MUNA AI…</p>
+        </AppShell>
+      }
+    >
+      {({ userId, generation }) => (
+        <AiChatPageLoaded key={generation} userId={userId} generation={generation} />
+      )}
+    </RequireUserSession>
+  );
+}
+
+function AiChatPageLoaded({
+  userId,
+  generation,
+}: {
+  userId: string;
+  generation: number;
+}) {
   const [input, setInput] = useState("");
   const [messages, setMessages] = useState<ChatMessage[]>([]);
   const [isLoading, setIsLoading] = useState(false);
@@ -143,23 +171,34 @@ export default function AiChatPage() {
       return false;
     }
 
-    return localStorage.getItem("munaMedicalDisclaimerAccepted") === "true";
+    return localStorage.getItem(`munaMedicalDisclaimerAccepted:${userId}`) === "true";
   });
   const scrollerRef = useRef<HTMLDivElement | null>(null);
   const recognitionRef = useRef<SpeechRecognitionInstance | null>(null);
 
   useEffect(() => {
+    const fetchGeneration = generation;
+
     async function loadUser() {
       if (!supabase) return;
 
       const { data } = await supabase.auth.getUser();
-      if (!data.user) return;
+      if (!data.user || data.user.id !== userId || fetchGeneration !== generation) return;
 
       setDisplayName(getDisplayName(data.user.user_metadata, data.user.email));
     }
 
-    loadUser();
-  }, []);
+    void loadUser();
+  }, [generation, userId]);
+
+  useEffect(() => {
+    const dashboardPrompt = readUserScopedDraft(userId, "munaDashboardVoicePrompt");
+    if (!dashboardPrompt) return;
+
+    removeUserScopedDraft(userId, "munaDashboardVoicePrompt");
+    sendMessage(dashboardPrompt, true);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [generation, userId]);
 
   useEffect(() => {
     scrollerRef.current?.scrollTo({
@@ -168,17 +207,8 @@ export default function AiChatPage() {
     });
   }, [messages, isLoading]);
 
-  useEffect(() => {
-    const dashboardPrompt = localStorage.getItem("munaDashboardVoicePrompt");
-    if (!dashboardPrompt) return;
-
-    localStorage.removeItem("munaDashboardVoicePrompt");
-    sendMessage(dashboardPrompt, true);
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
-
   function acceptMedicalDisclaimer() {
-    localStorage.setItem("munaMedicalDisclaimerAccepted", "true");
+    localStorage.setItem(`munaMedicalDisclaimerAccepted:${userId}`, "true");
     setHasAcceptedMedicalDisclaimer(true);
   }
 
@@ -323,30 +353,31 @@ export default function AiChatPage() {
     window.speechSynthesis.speak(utterance);
   }
 
-  function handleVoiceCommand(transcript: string, speakAnswer = false) {
+  async function handleVoiceCommand(transcript: string, speakAnswer = false) {
     const command = transcript.toLowerCase();
+    const activeUserId = userId ?? (supabase ? (await supabase.auth.getUser()).data.user?.id : null);
 
     if (command.includes("log breakfast") || command.includes("log lunch") || command.includes("log dinner")) {
       const mealType = command.includes("lunch") ? "Lunch" : command.includes("dinner") ? "Dinner" : "Breakfast";
-      localStorage.setItem("munaVoiceMealDraft", JSON.stringify({ mealType, note: transcript }));
+      writeUserScopedDraft(activeUserId, "munaVoiceMealDraft", JSON.stringify({ mealType, note: transcript }));
       window.location.href = `/add-meal?voiceDraft=${encodeURIComponent(mealType)}`;
       return;
     }
 
     if (command.includes("bloating") || command.includes("pain") || command.includes("symptom")) {
-      localStorage.setItem("munaVoiceSymptomDraft", JSON.stringify({ symptoms: transcript }));
+      writeUserScopedDraft(activeUserId, "munaVoiceSymptomDraft", JSON.stringify({ symptoms: transcript }));
       window.location.href = `/add-symptoms?voiceDraft=${encodeURIComponent(transcript)}`;
       return;
     }
 
     if (command.includes("slept") || command.includes("sleep")) {
-      localStorage.setItem("munaVoiceSleepDraft", JSON.stringify({ note: transcript }));
+      writeUserScopedDraft(activeUserId, "munaVoiceSleepDraft", JSON.stringify({ note: transcript }));
       window.location.href = `/sleep?voiceDraft=${encodeURIComponent(transcript)}`;
       return;
     }
 
     if (command.includes("stress level") || command.includes("stress")) {
-      localStorage.setItem("munaVoiceStressDraft", JSON.stringify({ note: transcript }));
+      writeUserScopedDraft(activeUserId, "munaVoiceStressDraft", JSON.stringify({ note: transcript }));
       window.location.href = `/add-symptoms?voiceDraft=${encodeURIComponent(transcript)}`;
       return;
     }

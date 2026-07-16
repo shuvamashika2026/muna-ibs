@@ -30,6 +30,8 @@ import {
 } from "recharts";
 import { AppShell } from "@/components/app-shell";
 import { supabase } from "@/lib/supabase";
+import { RequireUserSession } from "@/lib/auth/require-user-session";
+import { hasEnoughScoreData } from "@/lib/dashboard/score-eligibility";
 
 type DbRow = Record<string, unknown>;
 
@@ -65,18 +67,6 @@ const cardVariants: Variants = {
   hidden: { opacity: 0, y: 18 },
   visible: { opacity: 1, y: 0, transition: { duration: 0.45, ease: "easeOut" } },
 };
-
-const exampleTrends = [
-  { label: "Mon", gut: 75, stress: 5, sleep: 6.8, water: 1.6 },
-  { label: "Tue", gut: 78, stress: 4, sleep: 7.1, water: 1.8 },
-  { label: "Wed", gut: 82, stress: 3, sleep: 7.5, water: 2.0 },
-  { label: "Thu", gut: 84, stress: 3, sleep: 7.4, water: 2.1 },
-  { label: "Fri", gut: 86, stress: 2, sleep: 7.8, water: 2.2 },
-];
-
-const exampleTriggers = ["Stress", "Poor Sleep", "Garlic", "Coffee", "Dairy"];
-const exampleToleratedFoods = ["Rice", "Eggs", "Banana", "Chicken soup"];
-const exampleMonitorFoods = ["Garlic", "Onion", "Coffee", "Dairy"];
 
 function getText(row: DbRow, keys: string[]) {
   return keys
@@ -140,6 +130,28 @@ async function safeQuery(table: string, userId: string, limit = 120) {
 }
 
 export default function HealthReportPage() {
+  return (
+    <RequireUserSession
+      loading={
+        <AppShell title="AI Health Report" subtitle="A personal Brain-Gut Health Report generated from your MUNA logs.">
+          <p className="text-sm font-semibold text-slate-600">Loading your health report…</p>
+        </AppShell>
+      }
+    >
+      {({ userId, generation }) => (
+        <HealthReportPageLoaded key={generation} userId={userId} generation={generation} />
+      )}
+    </RequireUserSession>
+  );
+}
+
+function HealthReportPageLoaded({
+  userId,
+  generation,
+}: {
+  userId: string;
+  generation: number;
+}) {
   const [reportData, setReportData] = useState<ReportData>({
     meals: [],
     symptoms: [],
@@ -152,11 +164,13 @@ export default function HealthReportPage() {
   });
 
   useEffect(() => {
+    const fetchGeneration = generation;
+
     async function loadReportData() {
       if (!supabase) {
         setReportData((current) => ({
           ...current,
-          accessNotes: ["Supabase is not configured. The report is showing safe demo placeholders."],
+          accessNotes: ["Supabase is not configured."],
           isLoading: false,
         }));
         return;
@@ -165,8 +179,7 @@ export default function HealthReportPage() {
       const { data } = await supabase.auth.getUser();
       const user = data.user;
 
-      if (!user) {
-        window.location.href = "/login";
+      if (!user || user.id !== userId || fetchGeneration !== generation) {
         return;
       }
 
@@ -198,8 +211,8 @@ export default function HealthReportPage() {
       });
     }
 
-    loadReportData();
-  }, []);
+    void loadReportData();
+  }, [generation, userId]);
 
   const analytics = useMemo(() => buildReportAnalytics(reportData), [reportData]);
   const generatedOn = useMemo(
@@ -270,21 +283,35 @@ function buildReportAnalytics(data: ReportData) {
   const bristolValues = recentTrends.map((point) => point.bristol).filter((value): value is number => value !== null);
   const totalLogs = data.meals.length + data.symptoms.length + data.stools.length + data.water.length + data.sleep.length;
   const hasEnoughCoreData = totalLogs >= 8 && recentTrends.length >= 3;
-  const gutScore = calculateGutScore({
-    pain: average(painValues),
-    bloating: average(bloatingValues),
-    stress: average(stressValues),
-    sleep: average(sleepValues),
-    water: average(waterValues),
-    bristol: average(bristolValues),
+  const enoughScoreData = hasEnoughScoreData({
+    meals: data.meals.length,
+    symptoms: data.symptoms.length,
+    bowelMovements: data.stools.length,
   });
+  const gutScore = enoughScoreData
+    ? calculateGutScore({
+        pain: average(painValues),
+        bloating: average(bloatingValues),
+        stress: average(stressValues),
+        sleep: average(sleepValues),
+        water: average(waterValues),
+        bristol: average(bristolValues),
+      })
+    : null;
   const triggers = buildTriggerScores(data.meals, data.symptoms);
   const foods = buildFoodSignals(data.meals, data.symptoms);
   const hasEnoughTriggerData = data.meals.length >= 4 && data.symptoms.length >= 4 && triggers.length > 0;
   const hasEnoughFoodData = data.meals.length >= 6 && data.symptoms.length >= 4;
   const hasEnoughForecastData = hasEnoughCoreData && painValues.length >= 2 && stressValues.length >= 2;
   const flareRiskScore = gutScore === null ? null : 100 - gutScore;
-  const risk = flareRiskScore === null ? "Low" : flareRiskScore > 55 ? "High" : flareRiskScore > 32 ? "Moderate" : "Low";
+  const risk =
+    flareRiskScore === null || !hasEnoughForecastData
+      ? null
+      : flareRiskScore > 55
+        ? "High"
+        : flareRiskScore > 32
+          ? "Moderate"
+          : "Low";
   const confidence =
     hasEnoughForecastData && flareRiskScore !== null ? Math.min(91, Math.max(62, Math.round(95 - Math.abs(45 - flareRiskScore)))) : null;
 
@@ -295,15 +322,15 @@ function buildReportAnalytics(data: ReportData) {
     hasEnoughTriggerData,
     hasEnoughFoodData,
     hasEnoughForecastData,
-    gutScore: gutScore ?? 84,
+    gutScore: gutScore,
     forecast: {
       risk,
       confidence,
       reasons: buildForecastReasons({ sleepValues, stressValues, waterValues, bristolValues, painValues }),
     },
     triggers: hasEnoughTriggerData ? triggers : [],
-    toleratedFoods: hasEnoughFoodData ? foods.tolerated : exampleToleratedFoods,
-    foodsToMonitor: hasEnoughFoodData ? foods.monitor : exampleMonitorFoods,
+    toleratedFoods: hasEnoughFoodData ? foods.tolerated : [],
+    foodsToMonitor: hasEnoughFoodData ? foods.monitor : [],
     brainGutSummary: buildBrainGutSummary({ hasEnoughCoreData, stressValues, sleepValues, waterValues, painValues, data }),
     recoveryPlan: buildRecoveryPlan({ hasEnoughCoreData, stressValues, sleepValues, waterValues, bristolValues }),
     weeklySummary: [
@@ -388,14 +415,16 @@ function calculateGutScore({
   water: number | null;
   bristol: number | null;
 }) {
-  if ([pain, bloating, stress, sleep, water, bristol].every((value) => value === null)) return null;
+  if ([pain, bloating, stress, sleep, water, bristol].every((value) => value === null)) {
+    return null;
+  }
 
   let score = 100;
-  score -= (pain ?? 3) * 4;
-  score -= (bloating ?? 3) * 3;
-  score -= Math.max(0, (stress ?? 4) - 3) * 4;
-  if ((sleep ?? 7.2) < 7) score -= 8;
-  if ((water ?? 2) < 1.8) score -= 7;
+  if (pain !== null) score -= pain * 4;
+  if (bloating !== null) score -= bloating * 3;
+  if (stress !== null) score -= Math.max(0, stress - 3) * 4;
+  if (sleep !== null && sleep < 7) score -= 8;
+  if (water !== null && water < 1.8) score -= 7;
   if (bristol !== null && ![3, 4, 5].includes(Math.round(bristol))) score -= 8;
 
   return Math.max(0, Math.min(100, Math.round(score)));
@@ -669,20 +698,28 @@ function NoticeCard({ title, body }: { title: string; body: string }) {
   );
 }
 
-function OverallHealthCard({ score, isDemo }: { score: number; isDemo: boolean }) {
+function OverallHealthCard({ score, isDemo }: { score: number | null; isDemo: boolean }) {
   return (
     <ReportCard>
       <SectionHeader icon={HeartPulse} eyebrow="Section 1" title="Overall Health" />
       {isDemo ? <DemoPill label="Example Demo Report" /> : null}
       <div className="mt-6 flex flex-col items-center gap-5 sm:flex-row">
-        <CircularScore score={score} />
-        <div className="flex-1">
-          <p className="text-sm font-black uppercase tracking-wide text-slate-500">Gut Health Score</p>
-          <p className="mt-2 text-4xl font-black text-[#0F172A]">{score} /100</p>
-          <p className="mt-3 w-fit rounded-full bg-[#D1FAE5] px-4 py-2 text-sm font-black text-[#0F766E]">
-            Status: {isDemo ? "Improving example" : score >= 75 ? "Improving" : score >= 55 ? "Stable" : "Needs attention"}
-          </p>
-        </div>
+        {score === null ? (
+          <div className="flex-1 rounded-[1.5rem] bg-[#ECFDF5] p-5 text-sm font-semibold leading-6 text-slate-600">
+            Log meals, symptoms, sleep, and water to generate your personal gut health score.
+          </div>
+        ) : (
+          <>
+            <CircularScore score={score} />
+            <div className="flex-1">
+              <p className="text-sm font-black uppercase tracking-wide text-slate-500">Gut Health Score</p>
+              <p className="mt-2 text-4xl font-black text-[#0F172A]">{score} /100</p>
+              <p className="mt-3 w-fit rounded-full bg-[#D1FAE5] px-4 py-2 text-sm font-black text-[#0F766E]">
+                Status: {score >= 75 ? "Improving" : score >= 55 ? "Stable" : "Needs attention"}
+              </p>
+            </div>
+          </>
+        )}
       </div>
     </ReportCard>
   );
@@ -692,7 +729,7 @@ function ForecastCard({
   forecast,
   isDemo,
 }: {
-  forecast: { risk: string; confidence: number | null; reasons: string[] };
+  forecast: { risk: string | null; confidence: number | null; reasons: string[] };
   isDemo: boolean;
 }) {
   return (
@@ -702,9 +739,11 @@ function ForecastCard({
       <div className="mt-5 grid gap-4 sm:grid-cols-[0.8fr_1.2fr]">
         <div className="rounded-[1.5rem] bg-gradient-to-br from-[#ECFDF5] to-white p-5">
           <p className="text-sm font-black text-slate-500">Risk</p>
-          <p className="mt-2 text-4xl font-black text-[#0F766E]">{forecast.risk}</p>
+          <p className="mt-2 text-4xl font-black text-[#0F766E]">
+            {forecast.risk ?? "Not enough data"}
+          </p>
           <p className="mt-3 text-sm font-bold text-slate-500">
-            Confidence: {forecast.confidence === null ? "Only shown with sufficient data" : `${forecast.confidence}%`}
+            Confidence: {forecast.confidence === null ? "Not enough data" : `${forecast.confidence}%`}
           </p>
         </div>
         <div className="grid gap-2">
@@ -730,7 +769,7 @@ function BrainGutAnalysisCard({ summary, hasEnoughData }: { summary: string; has
 }
 
 function TopTriggersCard({ triggers, hasEnoughData }: { triggers: TriggerScore[]; hasEnoughData: boolean }) {
-  const display = hasEnoughData ? triggers : exampleTriggers.map((name, index) => ({ name, count: 5 - index }));
+  const display = hasEnoughData ? triggers : [];
   const max = Math.max(...display.map((trigger) => trigger.count), 1);
 
   return (
@@ -738,21 +777,25 @@ function TopTriggersCard({ triggers, hasEnoughData }: { triggers: TriggerScore[]
       <SectionHeader icon={Waves} eyebrow="Section 4" title="Top Personal Triggers" />
       {!hasEnoughData ? (
         <p className="mt-4 rounded-[1.25rem] bg-[#ECFDF5] p-4 text-sm font-bold leading-6 text-[#0F766E]">
-          Personal trigger analysis will appear after additional logs are collected. Example rankings are shown below.
+          Personal trigger analysis will appear after additional logs are collected.
         </p>
       ) : null}
       <div className="mt-5 grid gap-3">
-        {display.map((trigger) => (
+        {display.length === 0 ? (
+          <p className="text-sm font-semibold text-slate-600">No personal trigger patterns yet.</p>
+        ) : (
+          display.map((trigger) => (
           <div key={trigger.name}>
             <div className="mb-2 flex items-center justify-between text-sm font-black text-[#0F172A]">
               <span>{trigger.name}</span>
-              <span>{hasEnoughData ? `${trigger.count} linked days` : "Example"}</span>
+              <span>{hasEnoughData ? `${trigger.count} linked days` : "—"}</span>
             </div>
             <div className="h-3 rounded-full bg-emerald-50">
               <div className="h-3 rounded-full bg-gradient-to-r from-[#0F766E] to-[#10B981]" style={{ width: `${(trigger.count / max) * 100}%` }} />
             </div>
           </div>
-        ))}
+          ))
+        )}
       </div>
     </ReportCard>
   );
@@ -854,12 +897,15 @@ function TrendChartCard({ trends, hasEnoughData }: { trends: TrendPoint[]; hasEn
         sleep: point.sleep,
         water: point.water,
       }))
-    : exampleTrends;
+    : [];
 
   return (
     <ReportCard>
       <SectionHeader icon={Droplets} eyebrow="Beautiful charts" title="Weekly Health Trends" />
-      {!hasEnoughData ? <DemoPill label="Example chart until more logs are collected" /> : null}
+      {!hasEnoughData ? <DemoPill label="Charts appear after more logs are collected" /> : null}
+      {data.length === 0 ? (
+        <p className="mt-5 text-sm font-semibold text-slate-600">No trend data yet for this account.</p>
+      ) : (
       <div className="mt-5 grid gap-4 xl:grid-cols-[1.2fr_0.8fr]">
         <div className="h-72 rounded-[1.5rem] bg-[#ECFDF5] p-4">
           <ResponsiveContainer width="100%" height="100%">
@@ -885,6 +931,7 @@ function TrendChartCard({ trends, hasEnoughData }: { trends: TrendPoint[]; hasEn
           </ResponsiveContainer>
         </div>
       </div>
+      )}
     </ReportCard>
   );
 }

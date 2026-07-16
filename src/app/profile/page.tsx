@@ -7,6 +7,7 @@ import {
   mapUsersRowToProfileForm,
   type ProfileFormState,
 } from "@/lib/profile/persistence";
+import { RequireUserSession } from "@/lib/auth/require-user-session";
 import { AppShell } from "@/components/app-shell";
 import { inputClass, labelClass } from "@/components/form-card";
 
@@ -30,6 +31,28 @@ const initialForm: ProfileFormState = {
 };
 
 export default function ProfilePage() {
+  return (
+    <RequireUserSession
+      loading={
+        <AppShell title="Profile" subtitle="Tell MUNA IBS about you so recommendations can become more personal.">
+          <p className="text-sm font-semibold text-slate-600">Loading profile…</p>
+        </AppShell>
+      }
+    >
+      {({ userId, generation }) => (
+        <ProfilePageLoaded key={generation} userId={userId} generation={generation} />
+      )}
+    </RequireUserSession>
+  );
+}
+
+function ProfilePageLoaded({
+  userId,
+  generation,
+}: {
+  userId: string;
+  generation: number;
+}) {
   const [form, setForm] = useState<ProfileFormState>(initialForm);
   const [message, setMessage] = useState("");
   const [messageTone, setMessageTone] = useState<"success" | "error">("success");
@@ -37,6 +60,8 @@ export default function ProfilePage() {
   const [isSaving, setIsSaving] = useState(false);
 
   useEffect(() => {
+    const fetchGeneration = generation;
+
     async function loadProfile() {
       if (!supabase) {
         setIsLoading(false);
@@ -46,12 +71,15 @@ export default function ProfilePage() {
       const { data: userData } = await supabase.auth.getUser();
       const user = userData.user;
 
-      if (!user) {
-        window.location.href = "/login";
+      if (!user || user.id !== userId || fetchGeneration !== generation) {
         return;
       }
 
       const { data, error } = await supabase.from("users").select("*").eq("id", user.id).maybeSingle();
+
+      if (fetchGeneration !== generation) {
+        return;
+      }
 
       if (error) {
         setMessageTone("error");
@@ -67,8 +95,8 @@ export default function ProfilePage() {
       setIsLoading(false);
     }
 
-    loadProfile();
-  }, []);
+    void loadProfile();
+  }, [generation, userId]);
 
   async function handleSave() {
     if (!supabase || isSaving) return;
@@ -92,7 +120,7 @@ export default function ProfilePage() {
       return;
     }
 
-    const { error } = await supabase.from("users").upsert(built.row);
+    const { error } = await supabase.from("users").upsert(built.row, { onConflict: "id" });
 
     if (error) {
       setMessageTone("error");

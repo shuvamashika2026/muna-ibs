@@ -5,6 +5,8 @@ import { AppShell } from "@/components/app-shell";
 import { FormCard, inputClass, labelClass } from "@/components/form-card";
 import { SaveEntryButton } from "@/components/save-entry-button";
 import { buildSymptomInsertPayload } from "@/lib/symptoms/validation";
+import { supabase } from "@/lib/supabase";
+import { readUserScopedDraft, removeUserScopedDraft } from "@/lib/auth/user-scoped-storage";
 
 export default function AddSymptomsPage() {
   const [painLevel, setPainLevel] = useState(3);
@@ -19,25 +21,33 @@ export default function AddSymptomsPage() {
   const [notes, setNotes] = useState("");
 
   useEffect(() => {
-    const symptomDraft = localStorage.getItem("munaVoiceSymptomDraft");
-    const stressDraft = localStorage.getItem("munaVoiceStressDraft");
-    const draft = symptomDraft || stressDraft;
-    if (!draft) return;
+    async function loadVoiceDraft() {
+      if (!supabase) return;
 
-    try {
-      const parsed = JSON.parse(draft) as { symptoms?: string; note?: string };
-      const text = parsed.symptoms || parsed.note || "";
-      const stressMatch = text.match(/stress(?: level)?\s*(\d+)/i);
-      if (stressMatch?.[1]) {
-        setStressLevel(Math.min(10, Math.max(0, Number(stressMatch[1]))));
+      const { data } = await supabase.auth.getUser();
+      const userId = data.user?.id;
+      const symptomDraft = readUserScopedDraft(userId, "munaVoiceSymptomDraft");
+      const stressDraft = readUserScopedDraft(userId, "munaVoiceStressDraft");
+      const draft = symptomDraft || stressDraft;
+      if (!draft) return;
+
+      try {
+        const parsed = JSON.parse(draft) as { symptoms?: string; note?: string };
+        const text = parsed.symptoms || parsed.note || "";
+        const stressMatch = text.match(/stress(?: level)?\s*(\d+)/i);
+        if (stressMatch?.[1]) {
+          setStressLevel(Math.min(10, Math.max(0, Number(stressMatch[1]))));
+        }
+        if (/bloating/i.test(text)) setBloatingLevel(6);
+        if (/pain|cramp/i.test(text)) setPainLevel(6);
+        setNotes(`Voice draft: ${text}`);
+      } finally {
+        removeUserScopedDraft(userId, "munaVoiceSymptomDraft");
+        removeUserScopedDraft(userId, "munaVoiceStressDraft");
       }
-      if (/bloating/i.test(text)) setBloatingLevel(6);
-      if (/pain|cramp/i.test(text)) setPainLevel(6);
-      setNotes(`Voice draft: ${text}`);
-    } finally {
-      localStorage.removeItem("munaVoiceSymptomDraft");
-      localStorage.removeItem("munaVoiceStressDraft");
     }
+
+    void loadVoiceDraft();
   }, []);
 
   function buildPayload() {

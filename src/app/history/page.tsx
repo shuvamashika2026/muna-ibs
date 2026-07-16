@@ -2,33 +2,59 @@
 
 import { useEffect, useState } from "react";
 import { AppShell } from "@/components/app-shell";
+import { RequireUserSession } from "@/lib/auth/require-user-session";
 import { supabase } from "@/lib/supabase";
 
 type HistoryRow = { id: string } & Record<string, string | number | boolean | null>;
 
-export default function HistoryPage() {
-  const [selectedDate, setSelectedDate] = useState(
-    new Date().toISOString().slice(0, 10)
-  );
+const emptyHistory = {
+  meals: [] as HistoryRow[],
+  symptoms: [] as HistoryRow[],
+  bowel: [] as HistoryRow[],
+  water: [] as HistoryRow[],
+  sleep: [] as HistoryRow[],
+  medications: [] as HistoryRow[],
+};
 
-  const [data, setData] = useState({
-    meals: [] as HistoryRow[],
-    symptoms: [] as HistoryRow[],
-    bowel: [] as HistoryRow[],
-    water: [] as HistoryRow[],
-    sleep: [] as HistoryRow[],
-    medications: [] as HistoryRow[],
-  });
+export default function HistoryPage() {
+  return (
+    <RequireUserSession
+      loading={
+        <AppShell
+          title="History"
+          subtitle="Review your meals, symptoms, water, sleep, bowel movement, and medication history by date."
+        >
+          <p className="text-sm font-semibold text-slate-600">Loading your history…</p>
+        </AppShell>
+      }
+    >
+      {({ userId, generation }) => (
+        <HistoryPageLoaded key={generation} userId={userId} generation={generation} />
+      )}
+    </RequireUserSession>
+  );
+}
+
+function HistoryPageLoaded({
+  userId,
+  generation,
+}: {
+  userId: string;
+  generation: number;
+}) {
+  const [selectedDate, setSelectedDate] = useState(new Date().toISOString().slice(0, 10));
+  const [data, setData] = useState(emptyHistory);
 
   useEffect(() => {
+    const fetchGeneration = generation;
+
     async function loadHistory() {
       if (!supabase) return;
 
       const { data: userData } = await supabase.auth.getUser();
       const user = userData.user;
 
-      if (!user) {
-        window.location.href = "/login";
+      if (!user || user.id !== userId || fetchGeneration !== generation) {
         return;
       }
 
@@ -36,15 +62,37 @@ export default function HistoryPage() {
       nextDate.setDate(nextDate.getDate() + 1);
       const nextDateString = nextDate.toISOString().slice(0, 10);
 
-      const [meals, symptoms, bowel, water, sleep, medications] =
-        await Promise.all([
-          supabase.from("meals").select("*").eq("user_id", user.id).gte("eaten_at", selectedDate).lt("eaten_at", nextDateString),
-          supabase.from("symptoms").select("*").eq("user_id", user.id).gte("logged_at", selectedDate).lt("logged_at", nextDateString),
-          supabase.from("bowel_movements").select("*").eq("user_id", user.id).gte("logged_at", selectedDate).lt("logged_at", nextDateString),
-          supabase.from("water_logs").select("*").eq("user_id", user.id).eq("logged_on", selectedDate),
-          supabase.from("sleep_logs").select("*").eq("user_id", user.id).eq("slept_on", selectedDate),
-          supabase.from("medication_reminders").select("*").eq("user_id", user.id).eq("is_active", true),
-        ]);
+      const [meals, symptoms, bowel, water, sleep, medications] = await Promise.all([
+        supabase
+          .from("meals")
+          .select("*")
+          .eq("user_id", user.id)
+          .gte("eaten_at", selectedDate)
+          .lt("eaten_at", nextDateString),
+        supabase
+          .from("symptoms")
+          .select("*")
+          .eq("user_id", user.id)
+          .gte("logged_at", selectedDate)
+          .lt("logged_at", nextDateString),
+        supabase
+          .from("bowel_movements")
+          .select("*")
+          .eq("user_id", user.id)
+          .gte("logged_at", selectedDate)
+          .lt("logged_at", nextDateString),
+        supabase.from("water_logs").select("*").eq("user_id", user.id).eq("logged_on", selectedDate),
+        supabase.from("sleep_logs").select("*").eq("user_id", user.id).eq("slept_on", selectedDate),
+        supabase
+          .from("medication_reminders")
+          .select("*")
+          .eq("user_id", user.id)
+          .eq("is_active", true),
+      ]);
+
+      if (fetchGeneration !== generation) {
+        return;
+      }
 
       setData({
         meals: meals.data ?? [],
@@ -60,13 +108,10 @@ export default function HistoryPage() {
       });
     }
 
-    loadHistory();
-  }, [selectedDate]);
+    void loadHistory();
+  }, [generation, selectedDate, userId]);
 
-  const waterTotal = data.water.reduce(
-    (sum, item) => sum + Number(item.cups || 0) * 250,
-    0
-  );
+  const waterTotal = data.water.reduce((sum, item) => sum + Number(item.cups || 0) * 250, 0);
 
   return (
     <AppShell
@@ -80,7 +125,7 @@ export default function HistoryPage() {
             type="date"
             className="rounded-lg border border-slate-200 px-4 py-3 text-base font-normal"
             value={selectedDate}
-            onChange={(e) => setSelectedDate(e.target.value)}
+            onChange={(event) => setSelectedDate(event.target.value)}
           />
         </label>
       </div>

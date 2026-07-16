@@ -4,6 +4,7 @@ import { supabase } from "@/lib/supabase";
 import Link from "next/link";
 import Image from "next/image";
 import { navItems } from "@/lib/data";
+import { clearUserScopedBrowserState } from "@/lib/auth/user-scoped-storage";
 
 type AppShellProps = {
   children: React.ReactNode;
@@ -43,6 +44,7 @@ export function AppShell({
   async function handleSignOut() {
     if (!supabase) return;
 
+    clearUserScopedBrowserState();
     await supabase.auth.signOut();
     setUserEmail(null);
     window.location.href = "/login";

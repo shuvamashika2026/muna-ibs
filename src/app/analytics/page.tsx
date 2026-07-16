@@ -3,6 +3,7 @@
 import { useEffect, useState } from "react";
 import { AppShell } from "@/components/app-shell";
 import { supabase } from "@/lib/supabase";
+import { RequireUserSession } from "@/lib/auth/require-user-session";
 import { PainChart } from "@/components/charts/PainChart";
 
 type SymptomRow = {
@@ -12,6 +13,28 @@ type SymptomRow = {
 };
 
 export default function AnalyticsPage() {
+  return (
+    <RequireUserSession
+      loading={
+        <AppShell title="Analytics" subtitle="Understand your IBS trends over time.">
+          <p className="text-sm font-semibold text-slate-600">Loading analytics…</p>
+        </AppShell>
+      }
+    >
+      {({ userId, generation }) => (
+        <AnalyticsPageLoaded key={generation} userId={userId} generation={generation} />
+      )}
+    </RequireUserSession>
+  );
+}
+
+function AnalyticsPageLoaded({
+  userId,
+  generation,
+}: {
+  userId: string;
+  generation: number;
+}) {
   const [period, setPeriod] = useState("30");
   const [summary, setSummary] = useState({
     averagePain: 0,
@@ -23,14 +46,15 @@ export default function AnalyticsPage() {
   const [painData, setPainData] = useState<{ date: string; pain: number }[]>([]);
 
   useEffect(() => {
+    const fetchGeneration = generation;
+
     async function loadAnalytics() {
       if (!supabase) return;
 
       const { data: userData } = await supabase.auth.getUser();
       const user = userData.user;
 
-      if (!user) {
-        window.location.href = "/login";
+      if (!user || user.id !== userId || fetchGeneration !== generation) {
         return;
       }
 
@@ -71,8 +95,8 @@ export default function AnalyticsPage() {
       );
     }
 
-    loadAnalytics();
-  }, [period]);
+    void loadAnalytics();
+  }, [generation, period, userId]);
 
   const cards = [
     { label: "Average pain", value: `${summary.averagePain}/10`, hint: "Selected period" },
